@@ -1,0 +1,475 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  MOVEMENT_SUPERVISOR
+  COMPANY_USER
+}
+
+enum PermissionCode {
+  CAN_VIEW_DASHBOARD
+  CAN_VIEW_COMPANIES
+  CAN_VIEW_USERS
+  CAN_VIEW_COUNTERS
+  CAN_VIEW_DEVICES
+  CAN_VIEW_SESSIONS
+  CAN_VIEW_ISSUES
+  CAN_RESOLVE_ISSUES
+  CAN_APPROVE_OUTCHECK
+  CAN_VIEW_REPORTS
+  CAN_EXPORT_REPORTS
+  CAN_SEND_REPORT_EMAILS
+  CAN_VIEW_AUDIT_LOGS
+}
+
+enum CounterStatus {
+  AVAILABLE
+  RESERVED
+  IN_USE
+  PENDING_OUTCHECK_APPROVAL
+  UNAVAILABLE
+  OUT_OF_SERVICE
+}
+
+enum SessionStatus {
+  SCHEDULED
+  PRECHECK_IN_PROGRESS
+  PRECHECK_BLOCKED
+  OPERATING
+  OUTCHECK_IN_PROGRESS
+  OUTCHECK_PENDING_APPROVAL
+  OUTCHECK_REJECTED
+  CLOSED
+  CLOSED_WITH_ISSUES
+  CANCELLED
+}
+
+enum CheckResultValue {
+  OK
+  FAULTY
+  MISSING
+  N_A
+}
+
+enum DeviceStatus {
+  ACTIVE
+  INACTIVE
+  MAINTENANCE
+  MISSING
+  DAMAGED
+}
+
+enum IssueType {
+  PRECHECK
+  OUTCHECK
+  MANUAL
+  SYSTEM
+}
+
+enum IssueSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum IssueStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum ApprovalDecision {
+  APPROVED
+  REJECTED
+}
+
+enum NotificationType {
+  SESSION_CREATED
+  PRECHECK_STARTED
+  PRECHECK_COMPLETED
+  PRECHECK_ISSUE_CREATED
+  ISSUE_RESOLVED
+  OUTCHECK_SUBMITTED
+  OUTCHECK_APPROVED
+  OUTCHECK_REJECTED
+  COUNTER_UNAVAILABLE
+  COUNTER_AVAILABLE
+  REPORT_GENERATED
+  EMAIL_FAILED
+}
+
+enum EmailStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+enum ReportType {
+  SESSION_FINAL
+  DAILY_BACKUP
+  WEEKLY_BACKUP
+}
+
+enum ReportStatus {
+  GENERATED
+  FAILED
+}
+
+model User {
+  id                 String             @id @default(uuid())
+  email              String             @unique
+  passwordHash       String
+  fullName           String
+  role               Role
+  companyId          String?
+  company            Company?           @relation(fields: [companyId], references: [id])
+  isActive           Boolean            @default(true)
+  lastLoginAt        DateTime?
+  refreshTokenHash   String?
+  permissions        UserPermission[]
+  createdSessions    Session[]          @relation("SessionCreatedBy")
+  preChecks          PreCheck[]          @relation("PreCheckSignedBy")
+  outChecks          OutCheck[]          @relation("OutCheckSignedBy")
+  approvals          Approval[]
+  createdIssues      Issue[]            @relation("IssueCreatedBy")
+  resolvedIssues     Issue[]            @relation("IssueResolvedBy")
+  generatedReports   Report[]
+  targetedNotifications Notification[]  @relation("TargetUserNotifications")
+  auditLogs          AuditLog[]
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  @@index([role])
+  @@index([companyId])
+}
+
+model Company {
+  id            String         @id @default(uuid())
+  name          String
+  code          String         @unique
+  email         String?
+  phone         String?
+  isActive      Boolean        @default(true)
+  users         User[]
+  sessions      Session[]
+  notifications Notification[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}
+
+model Permission {
+  id          String           @id @default(uuid())
+  code        PermissionCode   @unique
+  description String?
+  users       UserPermission[]
+  createdAt   DateTime         @default(now())
+}
+
+model UserPermission {
+  id           String       @id @default(uuid())
+  userId       String
+  permissionId String
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permission   Permission   @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  createdAt    DateTime     @default(now())
+
+  @@unique([userId, permissionId])
+  @@index([userId])
+}
+
+model Counter {
+  id              String           @id @default(uuid())
+  code            String           @unique
+  name            String
+  status          CounterStatus    @default(AVAILABLE)
+  notes           String?
+  devices         Device[]
+  sessionCounters SessionCounter[]
+  preCheckResults PreCheckItemResult[]
+  outCheckResults OutCheckItemResult[]
+  issues          Issue[]
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@index([status])
+}
+
+model Device {
+  id              String          @id @default(uuid())
+  counterId       String
+  counter         Counter         @relation(fields: [counterId], references: [id])
+  name            String
+  type            String
+  serialNumber    String?
+  assetTag        String?
+  status          DeviceStatus    @default(ACTIVE)
+  notes           String?
+  isActive        Boolean         @default(true)
+  preCheckResults PreCheckItemResult[]
+  outCheckResults OutCheckItemResult[]
+  issues          Issue[]
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@index([counterId])
+  @@index([status])
+}
+
+model CheckItem {
+  id              String               @id @default(uuid())
+  name            String
+  description     String?
+  category        String
+  isRequired      Boolean              @default(true)
+  isActive        Boolean              @default(true)
+  order           Int                  @default(0)
+  preCheckResults PreCheckItemResult[]
+  outCheckResults OutCheckItemResult[]
+  issues          Issue[]
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  @@index([category])
+  @@index([isActive])
+}
+
+model Session {
+  id                   String           @id @default(uuid())
+  companyId            String
+  company              Company          @relation(fields: [companyId], references: [id])
+  createdById          String
+  createdBy            User             @relation("SessionCreatedBy", fields: [createdById], references: [id])
+  status               SessionStatus    @default(SCHEDULED)
+  plannedStartAt       DateTime
+  plannedEndAt         DateTime
+  actualPreCheckStartAt DateTime?
+  actualOperationStartAt DateTime?
+  actualOutCheckStartAt DateTime?
+  actualClosedAt       DateTime?
+  notes                String?
+  counters             SessionCounter[]
+  preChecks            PreCheck[]
+  outChecks            OutCheck[]
+  issues               Issue[]
+  approvals            Approval[]
+  reports              Report[]
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+
+  @@index([companyId])
+  @@index([status])
+  @@index([plannedStartAt, plannedEndAt])
+}
+
+model SessionCounter {
+  id        String   @id @default(uuid())
+  sessionId String
+  counterId String
+  session   Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  counter   Counter  @relation(fields: [counterId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@unique([sessionId, counterId])
+  @@index([counterId])
+}
+
+model PreCheck {
+  id         String               @id @default(uuid())
+  sessionId  String
+  session    Session              @relation(fields: [sessionId], references: [id])
+  signedById String?
+  signedBy   User?                @relation("PreCheckSignedBy", fields: [signedById], references: [id])
+  signedAt   DateTime?
+  results    PreCheckItemResult[]
+  createdAt  DateTime             @default(now())
+  updatedAt  DateTime             @updatedAt
+
+  @@index([sessionId])
+}
+
+model PreCheckItemResult {
+  id          String           @id @default(uuid())
+  preCheckId  String
+  preCheck    PreCheck         @relation(fields: [preCheckId], references: [id], onDelete: Cascade)
+  counterId   String
+  counter     Counter          @relation(fields: [counterId], references: [id])
+  deviceId    String?
+  device      Device?          @relation(fields: [deviceId], references: [id])
+  checkItemId String
+  checkItem   CheckItem        @relation(fields: [checkItemId], references: [id])
+  value       CheckResultValue
+  note        String?
+  issueId     String?
+  issue       Issue?           @relation(fields: [issueId], references: [id])
+  createdAt   DateTime         @default(now())
+
+  @@index([preCheckId])
+  @@index([counterId])
+}
+
+model OutCheck {
+  id         String                @id @default(uuid())
+  sessionId  String
+  session    Session               @relation(fields: [sessionId], references: [id])
+  signedById String?
+  signedBy   User?                 @relation("OutCheckSignedBy", fields: [signedById], references: [id])
+  signedAt   DateTime?
+  results    OutCheckItemResult[]
+  createdAt  DateTime              @default(now())
+  updatedAt  DateTime              @updatedAt
+
+  @@index([sessionId])
+}
+
+model OutCheckItemResult {
+  id           String           @id @default(uuid())
+  outCheckId   String
+  outCheck     OutCheck         @relation(fields: [outCheckId], references: [id], onDelete: Cascade)
+  counterId    String
+  counter      Counter          @relation(fields: [counterId], references: [id])
+  deviceId     String?
+  device       Device?          @relation(fields: [deviceId], references: [id])
+  checkItemId  String
+  checkItem    CheckItem        @relation(fields: [checkItemId], references: [id])
+  value        CheckResultValue
+  note         String?
+  issueId      String?
+  issue        Issue?           @relation(fields: [issueId], references: [id])
+  createdAt    DateTime         @default(now())
+
+  @@index([outCheckId])
+  @@index([counterId])
+}
+
+model Issue {
+  id              String              @id @default(uuid())
+  sessionId       String
+  session         Session             @relation(fields: [sessionId], references: [id])
+  counterId       String?
+  counter         Counter?            @relation(fields: [counterId], references: [id])
+  deviceId        String?
+  device          Device?             @relation(fields: [deviceId], references: [id])
+  checkItemId     String?
+  checkItem       CheckItem?          @relation(fields: [checkItemId], references: [id])
+  type            IssueType
+  severity        IssueSeverity       @default(MEDIUM)
+  status          IssueStatus         @default(OPEN)
+  title           String
+  description     String
+  resolutionNote  String?
+  createdById     String
+  createdBy       User                @relation("IssueCreatedBy", fields: [createdById], references: [id])
+  resolvedById    String?
+  resolvedBy      User?               @relation("IssueResolvedBy", fields: [resolvedById], references: [id])
+  preCheckResults PreCheckItemResult[]
+  outCheckResults OutCheckItemResult[]
+  resolvedAt      DateTime?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@index([sessionId])
+  @@index([counterId])
+  @@index([status])
+}
+
+model Approval {
+  id              String           @id @default(uuid())
+  sessionId       String
+  session         Session          @relation(fields: [sessionId], references: [id])
+  approvedById    String
+  approvedBy      User             @relation(fields: [approvedById], references: [id])
+  decision        ApprovalDecision
+  rejectionReason String?
+  createdAt       DateTime         @default(now())
+
+  @@index([sessionId])
+}
+
+model Report {
+  id            String       @id @default(uuid())
+  sessionId     String?
+  session       Session?     @relation(fields: [sessionId], references: [id])
+  type          ReportType
+  status        ReportStatus
+  pdfPath       String?
+  excelPath     String?
+  generatedById String?
+  generatedBy   User?        @relation(fields: [generatedById], references: [id])
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@index([sessionId])
+  @@index([type])
+}
+
+model Notification {
+  id              String            @id @default(uuid())
+  title           String
+  message         String
+  type            NotificationType
+  targetRole      Role?
+  targetUserId    String?
+  targetUser      User?             @relation("TargetUserNotifications", fields: [targetUserId], references: [id])
+  targetCompanyId String?
+  targetCompany   Company?          @relation(fields: [targetCompanyId], references: [id])
+  entityType      String?
+  entityId        String?
+  readAt          DateTime?
+  createdAt       DateTime          @default(now())
+
+  @@index([targetRole])
+  @@index([targetUserId])
+  @@index([targetCompanyId])
+}
+
+model EmailLog {
+  id                String      @id @default(uuid())
+  to                String
+  cc                String?
+  subject           String
+  bodyPreview       String
+  status            EmailStatus @default(PENDING)
+  errorMessage      String?
+  attachments       Json?
+  relatedEntityType String?
+  relatedEntityId   String?
+  createdAt         DateTime    @default(now())
+  sentAt            DateTime?
+
+  @@index([status])
+  @@index([relatedEntityType, relatedEntityId])
+}
+
+model AuditLog {
+  id             String   @id @default(uuid())
+  userId         String?
+  user           User?    @relation(fields: [userId], references: [id])
+  fullName       String?
+  role           Role?
+  companyId      String?
+  permissionUsed String?
+  action         String
+  entityType     String
+  entityId       String?
+  result         String
+  note           String?
+  ipAddress      String?
+  userAgent      String?
+  metadata       Json?
+  createdAt      DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}
