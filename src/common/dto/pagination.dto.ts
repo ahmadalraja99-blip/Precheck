@@ -21,7 +21,23 @@ export class PaginationDto {
 }
 
 export function paginate(dto: PaginationDto) {
-  const page = dto.page ?? 1;
-  const limit = dto.limit ?? 20;
-  return { skip: (page - 1) * limit, take: limit, page, limit };
+  const rawPage = Number(dto.page ?? 1);
+  const rawLimit = Number(dto.limit ?? 20);
+
+  const page = Number.isFinite(rawPage) && rawPage > 0 ? Math.floor(rawPage) : 1;
+
+  const limit =
+    Number.isFinite(rawLimit) && rawLimit > 0
+      ? Math.min(Math.floor(rawLimit), 100)
+      : 20;
+
+  const skip = (page - 1) * limit;
+  const take = limit;
+
+  return {
+    skip,
+    take,
+    page,
+    limit,
+  };
 }
