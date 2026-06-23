@@ -3,6 +3,7 @@ import { CounterStatus, NotificationType, Prisma, Role, SessionStatus } from '@p
 import { AuditService } from '../audit/audit.service';
 import { PaginationDto, paginate } from '../common/dto/pagination.dto';
 import { AuthUser } from '../common/types/auth-user.type';
+import { safeUserSelect } from '../common/utils/sanitize-user';
 import { CounterStatusService } from '../counters/counter-status.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -30,6 +31,12 @@ export class SessionsService {
     private readonly audit: AuditService,
     private readonly notifications: NotificationsService,
   ) {}
+
+  private assertCompanyUserLinked(user: AuthUser) {
+    if (user.role === Role.COMPANY_USER && !user.companyId) {
+      throw new ForbiddenException('Company user is not linked to a company');
+    }
+  }
 
   async create(dto: CreateSessionDto, user: AuthUser) {
     const start = new Date(dto.plannedStartAt);
@@ -76,8 +83,9 @@ export class SessionsService {
   }
 
   async list(query: PaginationDto & { status?: SessionStatus; companyId?: string; counterId?: string }, user: AuthUser) {
+    this.assertCompanyUserLinked(user);
     const { skip, take, page, limit } = paginate(query);
-    const companyId = user.role === Role.COMPANY_USER ? user.companyId ?? 'none' : query.companyId;
+    const companyId = user.role === Role.COMPANY_USER ? user.companyId! : query.companyId;
     const where: Prisma.SessionWhereInput = {
       status: query.status,
       companyId,
@@ -86,7 +94,7 @@ export class SessionsService {
     const [items, total] = await this.prisma.$transaction([
       this.prisma.session.findMany({
         where,
-        include: { company: true, createdBy: true, counters: { include: { counter: true } }, issues: true },
+        include: { company: true, createdBy: { select: safeUserSelect }, counters: { include: { counter: true } }, issues: true },
         skip,
         take,
         orderBy: { plannedStartAt: 'desc' },
@@ -97,16 +105,17 @@ export class SessionsService {
   }
 
   async find(id: string, user?: AuthUser) {
+    if (user) this.assertCompanyUserLinked(user);
     const session = await this.prisma.session.findUnique({
       where: { id },
       include: {
         company: true,
-        createdBy: true,
+        createdBy: { select: safeUserSelect },
         counters: { include: { counter: { include: { devices: true } } } },
-        preChecks: { include: { signedBy: true, results: { include: { checkItem: true, counter: true, device: true, issue: true } } } },
-        outChecks: { include: { signedBy: true, results: { include: { checkItem: true, counter: true, device: true, issue: true } } } },
+        preChecks: { include: { signedBy: { select: safeUserSelect }, results: { include: { checkItem: true, counter: true, device: true, issue: true } } } },
+        outChecks: { include: { signedBy: { select: safeUserSelect }, results: { include: { checkItem: true, counter: true, device: true, issue: true } } } },
         issues: true,
-        approvals: { include: { approvedBy: true } },
+        approvals: { include: { approvedBy: { select: safeUserSelect } } },
         reports: true,
       },
     });
@@ -116,6 +125,7 @@ export class SessionsService {
   }
 
   async checklistTemplate(sessionId: string, user: AuthUser, mode: ChecklistTemplateMode) {
+    this.assertCompanyUserLinked(user);
     if (!([Role.COMPANY_USER, Role.SUPER_ADMIN] as Role[]).includes(user.role)) {
       throw new ForbiddenException('Checklist template is only available to company users');
     }

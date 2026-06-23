@@ -5,6 +5,7 @@ import PDFDocument = require('pdfkit');
 import { AuditService } from '../audit/audit.service';
 import { PaginationDto, paginate } from '../common/dto/pagination.dto';
 import { AuthUser } from '../common/types/auth-user.type';
+import { safeUserSelect } from '../common/utils/sanitize-user';
 import { MailerService } from '../mailer/mailer.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
@@ -44,12 +45,12 @@ export class ReportsService {
       where: { id: sessionId },
       include: {
         company: true,
-        createdBy: true,
+        createdBy: { select: safeUserSelect },
         counters: { include: { counter: true } },
-        preChecks: { include: { signedBy: true, results: { include: { checkItem: true, counter: true, device: true, issue: true } } } },
-        outChecks: { include: { signedBy: true, results: { include: { checkItem: true, counter: true, device: true, issue: true } } } },
-        issues: { include: { counter: true, device: true, checkItem: true, resolvedBy: true } },
-        approvals: { include: { approvedBy: true } },
+        preChecks: { include: { signedBy: { select: safeUserSelect }, results: { include: { checkItem: true, counter: true, device: true, issue: true } } } },
+        outChecks: { include: { signedBy: { select: safeUserSelect }, results: { include: { checkItem: true, counter: true, device: true, issue: true } } } },
+        issues: { include: { counter: true, device: true, checkItem: true, resolvedBy: { select: safeUserSelect } } },
+        approvals: { include: { approvedBy: { select: safeUserSelect } } },
       },
     });
     if (!session) throw new NotFoundException('Session not found');
