@@ -5,39 +5,143 @@
     "description": "Backend API collection for Damascus International Airport Online PreCheck / OutCheck.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
-  "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  },
   "item": [
     {
       "name": "Auth",
       "item": [
         {
           "name": "Login",
-          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["const json = pm.response.json();", "pm.environment.set('accessToken', json.data.accessToken);", "pm.environment.set('refreshToken', json.data.refreshToken);"] } }],
-          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"email\": \"super.admin@example.com\",\n  \"password\": \"ChangeMe123!\"\n}" }, "url": "{{baseUrl}}/auth/login" }
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "",
+                  "const accessToken = json.data?.accessToken || json.accessToken;",
+                  "const refreshToken = json.data?.refreshToken || json.refreshToken;",
+                  "",
+                  "if (accessToken) {",
+                  "  pm.environment.set(\"accessToken\", accessToken);",
+                  "}",
+                  "",
+                  "if (refreshToken) {",
+                  "  pm.environment.set(\"refreshToken\", refreshToken);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"super.admin@example.com\",\n  \"password\": \"ChangeMe123!\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/login"
+          }
         },
-        { "name": "Refresh", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}" }, "url": "{{baseUrl}}/auth/refresh" } },
-        { "name": "Me", "request": { "method": "GET", "url": "{{baseUrl}}/auth/me" } }
+        {
+          "name": "Refresh",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/refresh"
+          }
+        },
+        {
+          "name": "Me",
+          "request": { "method": "GET", "url": "{{baseUrl}}/auth/me" }
+        }
       ]
     },
     {
       "name": "Users",
       "item": [
-        { "name": "Create User", "event": [{ "listen": "test", "script": { "exec": ["pm.environment.set('userId', pm.response.json().data.id);"], "type": "text/javascript" } }], "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"email\": \"new.admin@example.com\",\n  \"password\": \"Admin123!\",\n  \"fullName\": \"New Admin\",\n  \"role\": \"ADMIN\"\n}" }, "url": "{{baseUrl}}/users" } },
-        { "name": "List Users", "request": { "method": "GET", "url": "{{baseUrl}}/users?page=1&limit=20" } },
+        {
+          "name": "Create User",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["const json = pm.response.json();", "const id = json.data?.id || json.id;", "if (id) pm.environment.set(\"userId\", id);"] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"new.admin@example.com\",\n  \"password\": \"Admin123!\",\n  \"fullName\": \"New Admin\",\n  \"role\": \"ADMIN\"\n}" },
+            "url": "{{baseUrl}}/users"
+          }
+        },
+        {
+          "name": "List Users",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["const json = pm.response.json();", "const items = json.data?.items || json.items || [];", "if (items[0]?.id) pm.environment.set(\"userId\", items[0].id);"] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}/users?page=1&limit=20" }
+        },
         { "name": "Get User", "request": { "method": "GET", "url": "{{baseUrl}}/users/{{userId}}" } },
-        { "name": "Update User", "request": { "method": "PATCH", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"fullName\": \"Updated Admin\"\n}" }, "url": "{{baseUrl}}/users/{{userId}}" } },
+        {
+          "name": "Update User",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"fullName\": \"Updated Admin\"\n}" },
+            "url": "{{baseUrl}}/users/{{userId}}"
+          }
+        },
         { "name": "Activate User", "request": { "method": "PATCH", "url": "{{baseUrl}}/users/{{userId}}/activate" } },
         { "name": "Deactivate User", "request": { "method": "PATCH", "url": "{{baseUrl}}/users/{{userId}}/deactivate" } },
-        { "name": "Update Permissions", "request": { "method": "PATCH", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"permissions\": [\"CAN_VIEW_SESSIONS\", \"CAN_APPROVE_OUTCHECK\"]\n}" }, "url": "{{baseUrl}}/users/{{userId}}/permissions" } }
+        {
+          "name": "Update Permissions",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"permissions\": [\n    \"CAN_VIEW_COUNTERS\",\n    \"CAN_VIEW_SESSIONS\",\n    \"CAN_VIEW_ISSUES\",\n    \"CAN_RESOLVE_ISSUES\",\n    \"CAN_APPROVE_OUTCHECK\",\n    \"CAN_VIEW_REPORTS\",\n    \"CAN_EXPORT_REPORTS\",\n    \"CAN_VIEW_AUDIT_LOGS\"\n  ]\n}" },
+            "url": "{{baseUrl}}/users/{{userId}}/permissions"
+          }
+        }
       ]
     },
     {
       "name": "Companies",
       "item": [
-        { "name": "Create Company", "event": [{ "listen": "test", "script": { "exec": ["pm.environment.set('companyId', pm.response.json().data.id);"], "type": "text/javascript" } }], "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"name\": \"Cham Wings\",\n  \"code\": \"CWA\",\n  \"email\": \"ops@cwa.example\",\n  \"phone\": \"+963000000001\"\n}" }, "url": "{{baseUrl}}/companies" } },
-        { "name": "List Companies", "request": { "method": "GET", "url": "{{baseUrl}}/companies" } },
+        {
+          "name": "Create Company",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["const json = pm.response.json();", "const id = json.data?.id || json.id;", "if (id) pm.environment.set(\"companyId\", id);"] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Cham Wings\",\n  \"code\": \"CWA\",\n  \"email\": \"ops@cwa.example\",\n  \"phone\": \"+963000000001\"\n}" },
+            "url": "{{baseUrl}}/companies"
+          }
+        },
+        {
+          "name": "List Companies",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["const json = pm.response.json();", "const items = json.data?.items || json.items || [];", "if (items[0]?.id) pm.environment.set(\"companyId\", items[0].id);"] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}/companies?page=1&limit=20" }
+        },
         { "name": "Get Company", "request": { "method": "GET", "url": "{{baseUrl}}/companies/{{companyId}}" } },
-        { "name": "Update Company", "request": { "method": "PATCH", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"phone\": \"+963000000002\"\n}" }, "url": "{{baseUrl}}/companies/{{companyId}}" } },
+        {
+          "name": "Update Company",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"phone\": \"+963000000002\"\n}" },
+            "url": "{{baseUrl}}/companies/{{companyId}}"
+          }
+        },
         { "name": "Activate Company", "request": { "method": "PATCH", "url": "{{baseUrl}}/companies/{{companyId}}/activate" } },
         { "name": "Deactivate Company", "request": { "method": "PATCH", "url": "{{baseUrl}}/companies/{{companyId}}/deactivate" } }
       ]
@@ -45,30 +149,101 @@
     {
       "name": "Counters",
       "item": [
-        { "name": "Create Counter", "event": [{ "listen": "test", "script": { "exec": ["pm.environment.set('counterId', pm.response.json().data.id);"], "type": "text/javascript" } }], "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"code\": \"C41\",\n  \"name\": \"Check-in Counter 41\"\n}" }, "url": "{{baseUrl}}/counters" } },
-        { "name": "List Counters", "request": { "method": "GET", "url": "{{baseUrl}}/counters" } },
+        {
+          "name": "Create Counter",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["const json = pm.response.json();", "const id = json.data?.id || json.id;", "if (id) pm.environment.set(\"counterId\", id);"] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"code\": \"C41\",\n  \"name\": \"Check-in Counter 41\"\n}" },
+            "url": "{{baseUrl}}/counters"
+          }
+        },
+        {
+          "name": "List Available Counters",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["const json = pm.response.json();", "const items = json.data?.items || json.items || [];", "if (items[0]?.id) pm.environment.set(\"counterId\", items[0].id);"] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}/counters?status=AVAILABLE&page=1&limit=20" }
+        },
         { "name": "Status Map", "request": { "method": "GET", "url": "{{baseUrl}}/counters/status-map" } },
         { "name": "Get Counter", "request": { "method": "GET", "url": "{{baseUrl}}/counters/{{counterId}}" } },
-        { "name": "Update Counter", "request": { "method": "PATCH", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"notes\": \"Near gate A\"\n}" }, "url": "{{baseUrl}}/counters/{{counterId}}" } },
-        { "name": "Update Counter Status", "request": { "method": "PATCH", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"status\": \"AVAILABLE\",\n  \"note\": \"Manual correction\"\n}" }, "url": "{{baseUrl}}/counters/{{counterId}}/status" } }
+        {
+          "name": "Update Counter",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"notes\": \"Near gate A\"\n}" },
+            "url": "{{baseUrl}}/counters/{{counterId}}"
+          }
+        },
+        {
+          "name": "Update Counter Status",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"status\": \"AVAILABLE\",\n  \"note\": \"Manual correction\"\n}" },
+            "url": "{{baseUrl}}/counters/{{counterId}}/status"
+          }
+        }
       ]
     },
     {
       "name": "Devices",
       "item": [
-        { "name": "Create Device", "event": [{ "listen": "test", "script": { "exec": ["pm.environment.set('deviceId', pm.response.json().data.id);"], "type": "text/javascript" } }], "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"counterId\": \"{{counterId}}\",\n  \"name\": \"Bag Tag Printer\",\n  \"type\": \"PRINTER\",\n  \"assetTag\": \"BT-001\"\n}" }, "url": "{{baseUrl}}/devices" } },
-        { "name": "List Devices", "request": { "method": "GET", "url": "{{baseUrl}}/devices" } },
+        {
+          "name": "Create Device",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["const json = pm.response.json();", "const id = json.data?.id || json.id;", "if (id) pm.environment.set(\"deviceId\", id);"] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"counterId\": \"{{counterId}}\",\n  \"name\": \"Bag Tag Printer\",\n  \"type\": \"PRINTER\",\n  \"assetTag\": \"BT-001\"\n}" },
+            "url": "{{baseUrl}}/devices"
+          }
+        },
+        {
+          "name": "List Devices",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["const json = pm.response.json();", "const items = json.data?.items || json.items || [];", "if (items[0]?.id) pm.environment.set(\"deviceId\", items[0].id);"] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}/devices?page=1&limit=20" }
+        },
         { "name": "Get Device", "request": { "method": "GET", "url": "{{baseUrl}}/devices/{{deviceId}}" } },
-        { "name": "Update Device", "request": { "method": "PATCH", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"status\": \"MAINTENANCE\"\n}" }, "url": "{{baseUrl}}/devices/{{deviceId}}" } }
+        {
+          "name": "Update Device",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"status\": \"MAINTENANCE\"\n}" },
+            "url": "{{baseUrl}}/devices/{{deviceId}}"
+          }
+        }
       ]
     },
     {
       "name": "Check Items",
       "item": [
-        { "name": "Create Check Item", "event": [{ "listen": "test", "script": { "exec": ["pm.environment.set('checkItemId', pm.response.json().data.id);"], "type": "text/javascript" } }], "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"name\": \"Network cable\",\n  \"category\": \"Network\",\n  \"isRequired\": true,\n  \"order\": 10\n}" }, "url": "{{baseUrl}}/check-items" } },
-        { "name": "List Check Items", "request": { "method": "GET", "url": "{{baseUrl}}/check-items" } },
+        {
+          "name": "Create Check Item",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["const json = pm.response.json();", "const id = json.data?.id || json.id;", "if (id) pm.environment.set(\"checkItemId\", id);"] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Network cable\",\n  \"category\": \"Network\",\n  \"isRequired\": true,\n  \"order\": 10\n}" },
+            "url": "{{baseUrl}}/check-items"
+          }
+        },
+        {
+          "name": "List Check Items",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["const json = pm.response.json();", "const items = json.data?.items || json.items || [];", "if (items[0]?.id) pm.environment.set(\"checkItemId\", items[0].id);"] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}/check-items?isActive=true&page=1&limit=20" }
+        },
         { "name": "Get Check Item", "request": { "method": "GET", "url": "{{baseUrl}}/check-items/{{checkItemId}}" } },
-        { "name": "Update Check Item", "request": { "method": "PATCH", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"description\": \"Verify cable and port link\"\n}" }, "url": "{{baseUrl}}/check-items/{{checkItemId}}" } },
+        {
+          "name": "Update Check Item",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"description\": \"Verify cable and port link\"\n}" },
+            "url": "{{baseUrl}}/check-items/{{checkItemId}}"
+          }
+        },
         { "name": "Activate Check Item", "request": { "method": "PATCH", "url": "{{baseUrl}}/check-items/{{checkItemId}}/activate" } },
         { "name": "Deactivate Check Item", "request": { "method": "PATCH", "url": "{{baseUrl}}/check-items/{{checkItemId}}/deactivate" } }
       ]
@@ -76,46 +251,180 @@
     {
       "name": "Sessions",
       "item": [
-        { "name": "Create Session", "event": [{ "listen": "test", "script": { "exec": ["pm.environment.set('sessionId', pm.response.json().data.id);"], "type": "text/javascript" } }], "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"companyId\": \"{{companyId}}\",\n  \"counterIds\": [\"{{counterId}}\"],\n  \"plannedStartAt\": \"2026-06-20T10:00:00.000Z\",\n  \"plannedEndAt\": \"2026-06-20T14:00:00.000Z\"\n}" }, "url": "{{baseUrl}}/sessions" } },
-        { "name": "List Sessions", "request": { "method": "GET", "url": "{{baseUrl}}/sessions" } },
+        {
+          "name": "Create Session",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["const json = pm.response.json();", "const id = json.data?.id || json.id;", "if (id) pm.environment.set(\"sessionId\", id);"] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"companyId\": \"{{companyId}}\",\n  \"counterIds\": [\"{{counterId}}\"],\n  \"plannedStartAt\": \"2026-07-20T10:00:00.000Z\",\n  \"plannedEndAt\": \"2026-07-20T14:00:00.000Z\",\n  \"note\": \"Operational handover comment\"\n}" },
+            "url": "{{baseUrl}}/sessions"
+          }
+        },
+        {
+          "name": "List Sessions",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["const json = pm.response.json();", "const items = json.data?.items || json.items || [];", "if (items[0]?.id) pm.environment.set(\"sessionId\", items[0].id);"] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}/sessions?page=1&limit=20" }
+        },
         { "name": "Get Session", "request": { "method": "GET", "url": "{{baseUrl}}/sessions/{{sessionId}}" } },
-        { "name": "Cancel Session", "request": { "method": "PATCH", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"reason\": \"Flight cancelled\"\n}" }, "url": "{{baseUrl}}/sessions/{{sessionId}}/cancel" } }
+        {
+          "name": "Cancel Session",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"reason\": \"Flight cancelled\"\n}" },
+            "url": "{{baseUrl}}/sessions/{{sessionId}}/cancel"
+          }
+        }
       ]
     },
-    { "name": "PreCheck", "item": [
-      { "name": "Start PreCheck", "request": { "method": "POST", "url": "{{baseUrl}}/sessions/{{sessionId}}/precheck/start" } },
-      { "name": "Submit PreCheck", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"results\": [{\n    \"counterId\": \"{{counterId}}\",\n    \"deviceId\": \"{{deviceId}}\",\n    \"checkItemId\": \"{{checkItemId}}\",\n    \"value\": \"OK\",\n    \"note\": \"Checked\"\n  }]\n}" }, "url": "{{baseUrl}}/sessions/{{sessionId}}/precheck/submit" } },
-      { "name": "Get PreCheck", "request": { "method": "GET", "url": "{{baseUrl}}/sessions/{{sessionId}}/precheck" } }
-    ] },
-    { "name": "OutCheck", "item": [
-      { "name": "Start OutCheck", "request": { "method": "POST", "url": "{{baseUrl}}/sessions/{{sessionId}}/outcheck/start" } },
-      { "name": "Submit OutCheck", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"results\": [{\n    \"counterId\": \"{{counterId}}\",\n    \"deviceId\": \"{{deviceId}}\",\n    \"checkItemId\": \"{{checkItemId}}\",\n    \"value\": \"OK\"\n  }]\n}" }, "url": "{{baseUrl}}/sessions/{{sessionId}}/outcheck/submit" } },
-      { "name": "Get OutCheck", "request": { "method": "GET", "url": "{{baseUrl}}/sessions/{{sessionId}}/outcheck" } }
-    ] },
-    { "name": "Approvals", "item": [
-      { "name": "Approve OutCheck", "request": { "method": "POST", "url": "{{baseUrl}}/sessions/{{sessionId}}/outcheck/approve" } },
-      { "name": "Reject OutCheck", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"rejectionReason\": \"Printer damaged after operation\"\n}" }, "url": "{{baseUrl}}/sessions/{{sessionId}}/outcheck/reject" } }
-    ] },
-    { "name": "Issues", "item": [
-      { "name": "List Issues", "request": { "method": "GET", "url": "{{baseUrl}}/issues" } },
-      { "name": "Get Issue", "request": { "method": "GET", "url": "{{baseUrl}}/issues/{{issueId}}" } },
-      { "name": "Create Issue", "event": [{ "listen": "test", "script": { "exec": ["pm.environment.set('issueId', pm.response.json().data.id);"], "type": "text/javascript" } }], "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"sessionId\": \"{{sessionId}}\",\n  \"counterId\": \"{{counterId}}\",\n  \"type\": \"MANUAL\",\n  \"severity\": \"MEDIUM\",\n  \"title\": \"Manual issue\",\n  \"description\": \"Manual issue description\"\n}" }, "url": "{{baseUrl}}/issues" } },
-      { "name": "Assign Issue", "request": { "method": "PATCH", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"note\": \"Assigned to IT\"\n}" }, "url": "{{baseUrl}}/issues/{{issueId}}/assign" } },
-      { "name": "Resolve Issue", "request": { "method": "PATCH", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"resolutionNote\": \"Device replaced\"\n}" }, "url": "{{baseUrl}}/issues/{{issueId}}/resolve" } },
-      { "name": "Close Issue", "request": { "method": "PATCH", "url": "{{baseUrl}}/issues/{{issueId}}/close" } }
-    ] },
-    { "name": "Notifications", "item": [
-      { "name": "List Notifications", "request": { "method": "GET", "url": "{{baseUrl}}/notifications" } },
-      { "name": "Mark Read", "request": { "method": "PATCH", "url": "{{baseUrl}}/notifications/{{notificationId}}/read" } },
-      { "name": "Mark All Read", "request": { "method": "PATCH", "url": "{{baseUrl}}/notifications/read-all" } }
-    ] },
-    { "name": "Reports", "item": [
-      { "name": "List Reports", "request": { "method": "GET", "url": "{{baseUrl}}/reports" } },
-      { "name": "Get Report", "request": { "method": "GET", "url": "{{baseUrl}}/reports/{{reportId}}" } },
-      { "name": "Download Report", "request": { "method": "GET", "url": "{{baseUrl}}/reports/{{reportId}}/download" } },
-      { "name": "Email Report", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"recipients\": [\"it@example.com\"]\n}" }, "url": "{{baseUrl}}/reports/{{reportId}}/email" } },
-      { "name": "Generate Session Report", "event": [{ "listen": "test", "script": { "exec": ["pm.environment.set('reportId', pm.response.json().data.id);"], "type": "text/javascript" } }], "request": { "method": "POST", "url": "{{baseUrl}}/reports/session/{{sessionId}}/generate" } }
-    ] },
-    { "name": "Audit Logs", "item": [{ "name": "List Audit Logs", "request": { "method": "GET", "url": "{{baseUrl}}/audit-logs" } }] }
+    {
+      "name": "PreCheck",
+      "item": [
+        {
+          "name": "PreCheck Template",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["const json = pm.response.json();", "const data = json.data || json;", "const counter = data.counters?.[0];", "const device = counter?.devices?.[0];", "const checkItem = data.checkItems?.[0];", "if (counter?.id) pm.environment.set(\"counterId\", counter.id);", "if (device?.id) pm.environment.set(\"deviceId\", device.id);", "if (checkItem?.id) pm.environment.set(\"checkItemId\", checkItem.id);"] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}/sessions/{{sessionId}}/precheck/template" }
+        },
+        { "name": "Start PreCheck", "request": { "method": "POST", "url": "{{baseUrl}}/sessions/{{sessionId}}/precheck/start" } },
+        {
+          "name": "Submit PreCheck",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"results\": [\n    {\n      \"counterId\": \"{{counterId}}\",\n      \"deviceId\": \"{{deviceId}}\",\n      \"checkItemId\": \"{{checkItemId}}\",\n      \"value\": \"OK\",\n      \"note\": \"Checked\"\n    }\n  ]\n}" },
+            "url": "{{baseUrl}}/sessions/{{sessionId}}/precheck/submit"
+          }
+        },
+        { "name": "Get PreCheck", "request": { "method": "GET", "url": "{{baseUrl}}/sessions/{{sessionId}}/precheck" } }
+      ]
+    },
+    {
+      "name": "OutCheck",
+      "item": [
+        {
+          "name": "OutCheck Template",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["const json = pm.response.json();", "const data = json.data || json;", "const counter = data.counters?.[0];", "const device = counter?.devices?.[0];", "const checkItem = data.checkItems?.[0];", "if (counter?.id) pm.environment.set(\"counterId\", counter.id);", "if (device?.id) pm.environment.set(\"deviceId\", device.id);", "if (checkItem?.id) pm.environment.set(\"checkItemId\", checkItem.id);"] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}/sessions/{{sessionId}}/outcheck/template" }
+        },
+        { "name": "Start OutCheck", "request": { "method": "POST", "url": "{{baseUrl}}/sessions/{{sessionId}}/outcheck/start" } },
+        {
+          "name": "Submit OutCheck",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"results\": [\n    {\n      \"counterId\": \"{{counterId}}\",\n      \"deviceId\": \"{{deviceId}}\",\n      \"checkItemId\": \"{{checkItemId}}\",\n      \"value\": \"OK\",\n      \"note\": \"Checked after operation\"\n    }\n  ]\n}" },
+            "url": "{{baseUrl}}/sessions/{{sessionId}}/outcheck/submit"
+          }
+        },
+        { "name": "Get OutCheck", "request": { "method": "GET", "url": "{{baseUrl}}/sessions/{{sessionId}}/outcheck" } }
+      ]
+    },
+    {
+      "name": "Approvals",
+      "item": [
+        {
+          "name": "Approve OutCheck",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["const json = pm.response.json();", "const reportId = json.data?.report?.id || json.report?.id;", "if (reportId) pm.environment.set(\"reportId\", reportId);"] } }],
+          "request": { "method": "POST", "url": "{{baseUrl}}/sessions/{{sessionId}}/outcheck/approve" }
+        },
+        {
+          "name": "Reject OutCheck",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"rejectionReason\": \"Printer damaged after operation\"\n}" },
+            "url": "{{baseUrl}}/sessions/{{sessionId}}/outcheck/reject"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Issues",
+      "item": [
+        {
+          "name": "List Issues",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["const json = pm.response.json();", "const items = json.data?.items || json.items || [];", "if (items[0]?.id) pm.environment.set(\"issueId\", items[0].id);"] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}/issues?page=1&limit=20" }
+        },
+        { "name": "Get Issue", "request": { "method": "GET", "url": "{{baseUrl}}/issues/{{issueId}}" } },
+        {
+          "name": "Create Issue",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["const json = pm.response.json();", "const id = json.data?.id || json.id;", "if (id) pm.environment.set(\"issueId\", id);"] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"sessionId\": \"{{sessionId}}\",\n  \"counterId\": \"{{counterId}}\",\n  \"type\": \"MANUAL\",\n  \"severity\": \"MEDIUM\",\n  \"title\": \"Manual issue\",\n  \"description\": \"Manual issue description\"\n}" },
+            "url": "{{baseUrl}}/issues"
+          }
+        },
+        {
+          "name": "Assign Issue",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"note\": \"Assigned to IT\"\n}" },
+            "url": "{{baseUrl}}/issues/{{issueId}}/assign"
+          }
+        },
+        {
+          "name": "Resolve Issue",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"resolutionNote\": \"Device replaced\"\n}" },
+            "url": "{{baseUrl}}/issues/{{issueId}}/resolve"
+          }
+        },
+        { "name": "Close Issue", "request": { "method": "PATCH", "url": "{{baseUrl}}/issues/{{issueId}}/close" } }
+      ]
+    },
+    {
+      "name": "Notifications",
+      "item": [
+        {
+          "name": "List Notifications",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["const json = pm.response.json();", "const items = json.data?.items || json.items || [];", "if (items[0]?.id) pm.environment.set(\"notificationId\", items[0].id);"] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}/notifications?page=1&limit=20" }
+        },
+        { "name": "Mark Read", "request": { "method": "PATCH", "url": "{{baseUrl}}/notifications/{{notificationId}}/read" } },
+        { "name": "Mark All Read", "request": { "method": "PATCH", "url": "{{baseUrl}}/notifications/read-all" } }
+      ]
+    },
+    {
+      "name": "Reports",
+      "item": [
+        {
+          "name": "List Reports",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["const json = pm.response.json();", "const items = json.data?.items || json.items || [];", "const report = items.find((item) => item.type === \"SESSION_FINAL\") || items[0];", "if (report?.id) pm.environment.set(\"reportId\", report.id);"] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}/reports?page=1&limit=20" }
+        },
+        { "name": "Get Report", "request": { "method": "GET", "url": "{{baseUrl}}/reports/{{reportId}}" } },
+        { "name": "Download Report", "request": { "method": "GET", "url": "{{baseUrl}}/reports/{{reportId}}/download" } },
+        {
+          "name": "Email Report",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"recipients\": [\"it@example.com\"]\n}" },
+            "url": "{{baseUrl}}/reports/{{reportId}}/email"
+          }
+        },
+        {
+          "name": "Generate Session Report",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["const json = pm.response.json();", "const id = json.data?.id || json.id;", "if (id) pm.environment.set(\"reportId\", id);"] } }],
+          "request": { "method": "POST", "url": "{{baseUrl}}/reports/session/{{sessionId}}/generate" }
+        }
+      ]
+    },
+    {
+      "name": "Audit Logs",
+      "item": [
+        {
+          "name": "List Audit Logs",
+          "request": { "method": "GET", "url": "{{baseUrl}}/audit-logs?page=1&limit=20" }
+        }
+      ]
+    }
   ]
 }

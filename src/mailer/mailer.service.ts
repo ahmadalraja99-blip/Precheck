@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { EmailStatus, NotificationType, Prisma } from '@prisma/client';
-import nodemailer from 'nodemailer';
+import * as nodemailer from 'nodemailer';
 import { AuditService } from '../audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -16,14 +16,26 @@ export class MailerService {
   ) {}
 
   private transporter() {
-    return nodemailer.createTransport({
-      host: this.config.get<string>('SMTP_HOST'),
-      port: this.config.get<number>('SMTP_PORT', 587),
-      secure: false,
-      auth: this.config.get<string>('SMTP_USER')
-        ? { user: this.config.get<string>('SMTP_USER'), pass: this.config.get<string>('SMTP_PASS') }
-        : undefined,
-    });
+    const host = this.config.get<string>('SMTP_HOST')?.trim();
+    const from = this.config.get<string>('SMTP_FROM')?.trim();
+    if (!host || !from) throw new Error('SMTP is not configured');
+
+    const port = Number(this.config.get<string | number>('SMTP_PORT') ?? 587);
+    if (!Number.isInteger(port) || port <= 0) throw new Error('SMTP_PORT must be a positive integer');
+
+    const secureValue = String(this.config.get<string | boolean>('SMTP_SECURE') ?? 'false').toLowerCase();
+    const user = this.config.get<string>('SMTP_USER')?.trim();
+    const pass = this.config.get<string>('SMTP_PASS');
+
+    return {
+      from,
+      transport: nodemailer.createTransport({
+        host,
+        port,
+        secure: ['true', '1', 'yes'].includes(secureValue),
+        auth: user ? { user, pass } : undefined,
+      }),
+    };
   }
 
   async send(input: {
@@ -47,8 +59,9 @@ export class MailerService {
       },
     });
     try {
-      await this.transporter().sendMail({
-        from: this.config.get<string>('SMTP_FROM'),
+      const smtp = this.transporter();
+      await smtp.transport.sendMail({
+        from: smtp.from,
         to: input.to,
         cc: input.cc,
         subject: input.subject,

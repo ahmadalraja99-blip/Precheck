@@ -78,7 +78,10 @@ export class ReportsService {
       await this.audit.record({ user: generatedById ? { id: generatedById } : null, action: 'GENERATE_REPORT', entityType: 'Report', entityId: report.id });
       return report;
     } catch (error) {
-      return this.prisma.report.create({ data: { sessionId, type: ReportType.SESSION_FINAL, status: ReportStatus.FAILED, generatedById } });
+      const message = error instanceof Error ? error.message : 'Report generation failed';
+      const report = await this.prisma.report.create({ data: { sessionId, type: ReportType.SESSION_FINAL, status: ReportStatus.FAILED, generatedById } });
+      await this.audit.record({ user: generatedById ? { id: generatedById } : null, action: 'GENERATE_REPORT', entityType: 'Report', entityId: report.id, result: 'FAILED', note: message });
+      return report;
     }
   }
 
@@ -144,7 +147,7 @@ export class ReportsService {
       relatedEntityType: 'Report',
       relatedEntityId: id,
     });
-    await this.audit.record({ user, permissionUsed: PermissionCode.CAN_SEND_REPORT_EMAILS, action: 'SEND_REPORT_EMAIL', entityType: 'Report', entityId: id });
+    await this.audit.record({ user, permissionUsed: PermissionCode.CAN_SEND_REPORT_EMAILS, action: 'SEND_EMAIL', entityType: 'Report', entityId: id });
     return sent;
   }
 

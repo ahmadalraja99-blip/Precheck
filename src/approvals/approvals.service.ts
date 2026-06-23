@@ -40,11 +40,12 @@ export class ApprovalsService {
     const session = await this.sessions.find(sessionId, user);
     if (session.status !== SessionStatus.OUTCHECK_PENDING_APPROVAL) throw new BadRequestException('OutCheck is not pending approval');
     const counterIds = session.counters.map((row) => row.counterId);
+    const issueIds: string[] = [];
     const approval = await this.prisma.$transaction(async (tx) => {
       const created = await tx.approval.create({ data: { sessionId, approvedById: user.id, decision: ApprovalDecision.REJECTED, rejectionReason } });
       await tx.session.update({ where: { id: sessionId }, data: { status: SessionStatus.OUTCHECK_REJECTED } });
       for (const counterId of counterIds) {
-        await tx.issue.create({
+        const issue = await tx.issue.create({
           data: {
             sessionId,
             counterId,
@@ -55,10 +56,14 @@ export class ApprovalsService {
             createdById: user.id,
           },
         });
+        issueIds.push(issue.id);
       }
       await this.counterStatus.transitionMany(counterIds, CounterStatus.UNAVAILABLE, user, 'OutCheck rejected', tx);
       return created;
     });
+    for (const issueId of issueIds) {
+      await this.audit.record({ user, action: 'CREATE_ISSUE', entityType: 'Issue', entityId: issueId });
+    }
     await this.audit.record({ user, permissionUsed: 'CAN_APPROVE_OUTCHECK', action: 'REJECT_OUTCHECK', entityType: 'Session', entityId: sessionId, note: rejectionReason });
     await this.notifications.create({ title: 'OutCheck rejected', message: rejectionReason, type: NotificationType.OUTCHECK_REJECTED, targetCompanyId: session.companyId, entityType: 'Session', entityId: sessionId });
     return approval;

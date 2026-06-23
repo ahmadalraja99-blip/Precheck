@@ -19,6 +19,8 @@ const activeStatuses: SessionStatus[] = [
   SessionStatus.OUTCHECK_REJECTED,
 ];
 
+type ChecklistTemplateMode = 'precheck' | 'outcheck';
+
 @Injectable()
 export class SessionsService {
   constructor(
@@ -53,7 +55,7 @@ export class SessionsService {
           createdById: user.id,
           plannedStartAt: start,
           plannedEndAt: end,
-          notes: dto.notes,
+          notes: dto.notes ?? dto.note,
           counters: { create: dto.counterIds.map((counterId) => ({ counterId })) },
         },
         include: { counters: { include: { counter: true } }, company: true },
@@ -111,6 +113,67 @@ export class SessionsService {
     if (!session) throw new NotFoundException('Session not found');
     if (user?.role === Role.COMPANY_USER && session.companyId !== user.companyId) throw new ForbiddenException('Session belongs to another company');
     return session;
+  }
+
+  async checklistTemplate(sessionId: string, user: AuthUser, mode: ChecklistTemplateMode) {
+    if (!([Role.COMPANY_USER, Role.SUPER_ADMIN] as Role[]).includes(user.role)) {
+      throw new ForbiddenException('Checklist template is only available to company users');
+    }
+
+    const session = await this.prisma.session.findUnique({
+      where: { id: sessionId },
+      include: {
+        counters: {
+          include: {
+            counter: {
+              include: {
+                devices: {
+                  where: { isActive: true },
+                  orderBy: { name: 'asc' },
+                },
+              },
+            },
+          },
+          orderBy: { createdAt: 'asc' },
+        },
+      },
+    });
+    if (!session) throw new NotFoundException('Session not found');
+    if (user.role === Role.COMPANY_USER && session.companyId !== user.companyId) {
+      throw new ForbiddenException('Session belongs to another company');
+    }
+
+    const checkItems = await this.prisma.checkItem.findMany({
+      where: { isActive: true },
+      orderBy: [{ category: 'asc' }, { order: 'asc' }, { name: 'asc' }],
+    });
+
+    return {
+      mode,
+      session: {
+        id: session.id,
+        companyId: session.companyId,
+        status: session.status,
+        plannedStartAt: session.plannedStartAt,
+        plannedEndAt: session.plannedEndAt,
+      },
+      counters: session.counters.map(({ counter }) => ({
+        id: counter.id,
+        code: counter.code,
+        name: counter.name,
+        status: counter.status,
+        devices: counter.devices.map((device) => ({
+          id: device.id,
+          counterId: device.counterId,
+          name: device.name,
+          type: device.type,
+          serialNumber: device.serialNumber,
+          assetTag: device.assetTag,
+          status: device.status,
+        })),
+      })),
+      checkItems,
+    };
   }
 
   async updateStatus(id: string, next: SessionStatus, data: Prisma.SessionUpdateInput = {}) {

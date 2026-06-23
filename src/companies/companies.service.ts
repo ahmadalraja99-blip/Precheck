@@ -1,5 +1,5 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, Role } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
 import { PaginationDto, paginate } from '../common/dto/pagination.dto';
 import { AuthUser } from '../common/types/auth-user.type';
@@ -18,11 +18,14 @@ export class CompaniesService {
     return company;
   }
 
-  async list(query: PaginationDto) {
+  async list(query: PaginationDto, user?: AuthUser) {
     const { skip, take, page, limit } = paginate(query);
     const where: Prisma.CompanyWhereInput = query.search
-      ? { OR: [{ name: { contains: query.search, mode: 'insensitive' } }, { code: { contains: query.search, mode: 'insensitive' } }] }
-      : {};
+      ? {
+          isActive: user?.role === Role.MOVEMENT_SUPERVISOR ? true : undefined,
+          OR: [{ name: { contains: query.search, mode: 'insensitive' } }, { code: { contains: query.search, mode: 'insensitive' } }],
+        }
+      : { isActive: user?.role === Role.MOVEMENT_SUPERVISOR ? true : undefined };
     const [items, total] = await this.prisma.$transaction([
       this.prisma.company.findMany({ where, skip, take, orderBy: { name: 'asc' } }),
       this.prisma.company.count({ where }),
@@ -30,9 +33,10 @@ export class CompaniesService {
     return { items, meta: { total, page, limit } };
   }
 
-  async find(id: string) {
+  async find(id: string, user?: AuthUser) {
     const company = await this.prisma.company.findUnique({ where: { id } });
     if (!company) throw new NotFoundException('Company not found');
+    if (user?.role === Role.MOVEMENT_SUPERVISOR && !company.isActive) throw new NotFoundException('Company not found');
     return company;
   }
 

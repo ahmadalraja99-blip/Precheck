@@ -23,12 +23,14 @@ export class DevicesController {
   }
 
   @Get()
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
   @Permissions(PermissionCode.CAN_VIEW_DEVICES)
   list(@Query() query: PaginationDto & { counterId?: string; status?: DeviceStatus }) {
     return this.devices.list(query);
   }
 
   @Get(':id')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
   @Permissions(PermissionCode.CAN_VIEW_DEVICES)
   find(@Param('id') id: string) {
     return this.devices.find(id);

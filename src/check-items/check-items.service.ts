@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
 import { PaginationDto, paginate } from '../common/dto/pagination.dto';
@@ -10,6 +10,13 @@ import { CreateCheckItemDto, UpdateCheckItemDto } from './dto/check-item.dto';
 export class CheckItemsService {
   constructor(private readonly prisma: PrismaService, private readonly audit: AuditService) {}
 
+  private parseOptionalBoolean(value: unknown) {
+    if (value === undefined || value === null || value === '') return undefined;
+    if (value === true || value === 'true') return true;
+    if (value === false || value === 'false') return false;
+    throw new BadRequestException('isActive must be true or false');
+  }
+
   async create(dto: CreateCheckItemDto, user: AuthUser) {
     const item = await this.prisma.checkItem.create({ data: dto });
     await this.audit.record({ user, action: 'CREATE_CHECK_ITEM', entityType: 'CheckItem', entityId: item.id });
@@ -20,7 +27,7 @@ export class CheckItemsService {
     const { skip, take, page, limit } = paginate(query);
     const where: Prisma.CheckItemWhereInput = {
       category: query.category,
-      isActive: query.isActive,
+      isActive: this.parseOptionalBoolean(query.isActive),
       OR: query.search ? [{ name: { contains: query.search, mode: 'insensitive' } }, { description: { contains: query.search, mode: 'insensitive' } }] : undefined,
     };
     const [items, total] = await this.prisma.$transaction([

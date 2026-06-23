@@ -23,15 +23,17 @@ export class CompaniesController {
   }
 
   @Get()
+  @Roles(Role.MOVEMENT_SUPERVISOR, Role.SUPER_ADMIN, Role.ADMIN)
   @Permissions(PermissionCode.CAN_VIEW_COMPANIES)
-  list(@Query() query: PaginationDto) {
-    return this.companies.list(query);
+  list(@Query() query: PaginationDto, @CurrentUser() user: AuthUser) {
+    return this.companies.list(query, user);
   }
 
   @Get(':id')
+  @Roles(Role.MOVEMENT_SUPERVISOR, Role.SUPER_ADMIN, Role.ADMIN)
   @Permissions(PermissionCode.CAN_VIEW_COMPANIES)
-  find(@Param('id') id: string) {
-    return this.companies.find(id);
+  find(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.companies.find(id, user);
   }
 
   @Patch(':id')

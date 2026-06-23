@@ -9,6 +9,15 @@ type Tx = Omit<PrismaClient, '$connect' | '$disconnect' | '$on' | '$transaction'
 
 @Injectable()
 export class CounterStatusService {
+  private readonly allowedTransitions: Record<CounterStatus, CounterStatus[]> = {
+    AVAILABLE: [CounterStatus.RESERVED, CounterStatus.UNAVAILABLE, CounterStatus.OUT_OF_SERVICE],
+    RESERVED: [CounterStatus.IN_USE, CounterStatus.AVAILABLE, CounterStatus.UNAVAILABLE, CounterStatus.OUT_OF_SERVICE],
+    IN_USE: [CounterStatus.PENDING_OUTCHECK_APPROVAL, CounterStatus.UNAVAILABLE, CounterStatus.OUT_OF_SERVICE],
+    PENDING_OUTCHECK_APPROVAL: [CounterStatus.AVAILABLE, CounterStatus.UNAVAILABLE, CounterStatus.OUT_OF_SERVICE],
+    UNAVAILABLE: [CounterStatus.AVAILABLE, CounterStatus.OUT_OF_SERVICE],
+    OUT_OF_SERVICE: [CounterStatus.AVAILABLE, CounterStatus.UNAVAILABLE],
+  };
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
@@ -24,19 +33,30 @@ export class CounterStatusService {
   }
 
   async transitionMany(counterIds: string[], status: CounterStatus, actor?: AuthUser, note?: string, tx: Tx = this.prisma) {
-    await tx.counter.updateMany({ where: { id: { in: counterIds } }, data: { status } });
+    const uniqueCounterIds = [...new Set(counterIds)];
+    if (!uniqueCounterIds.length) return;
+
+    const counters = await tx.counter.findMany({ where: { id: { in: uniqueCounterIds } } });
+    if (counters.length !== uniqueCounterIds.length) throw new ConflictException('One or more counters were not found');
+
+    const invalid = counters.find((counter) => counter.status !== status && !this.allowedTransitions[counter.status].includes(status));
+    if (invalid) {
+      throw new ConflictException(`Invalid counter status transition from ${invalid.status} to ${status}`);
+    }
+
+    await tx.counter.updateMany({ where: { id: { in: uniqueCounterIds } }, data: { status } });
     await this.audit.record({
       user: actor,
       action: 'CHANGE_COUNTER_STATUS',
       entityType: 'Counter',
       result: 'SUCCESS',
       note: note ?? `Counters changed to ${status}`,
-      metadata: { counterIds, status },
+      metadata: { counterIds: uniqueCounterIds, status },
     });
     if (([CounterStatus.UNAVAILABLE, CounterStatus.AVAILABLE] as CounterStatus[]).includes(status)) {
       await this.notifications.create({
         title: status === CounterStatus.AVAILABLE ? 'Counter became available' : 'Counter became unavailable',
-        message: `${counterIds.length} counter(s) changed to ${status}`,
+        message: `${uniqueCounterIds.length} counter(s) changed to ${status}`,
         type: status === CounterStatus.AVAILABLE ? NotificationType.COUNTER_AVAILABLE : NotificationType.COUNTER_UNAVAILABLE,
         targetRole: Role.MOVEMENT_SUPERVISOR,
       });

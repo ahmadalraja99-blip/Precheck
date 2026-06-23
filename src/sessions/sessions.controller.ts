@@ -29,6 +29,18 @@ export class SessionsController {
     return this.sessions.list(query, user);
   }
 
+  @Get(':sessionId/precheck/template')
+  @Roles(Role.COMPANY_USER)
+  precheckTemplate(@Param('sessionId') sessionId: string, @CurrentUser() user: AuthUser) {
+    return this.sessions.checklistTemplate(sessionId, user, 'precheck');
+  }
+
+  @Get(':sessionId/outcheck/template')
+  @Roles(Role.COMPANY_USER)
+  outcheckTemplate(@Param('sessionId') sessionId: string, @CurrentUser() user: AuthUser) {
+    return this.sessions.checklistTemplate(sessionId, user, 'outcheck');
+  }
+
   @Get(':id')
   @Roles(Role.COMPANY_USER, Role.MOVEMENT_SUPERVISOR, Role.SUPER_ADMIN, Role.ADMIN)
   @Permissions(PermissionCode.CAN_VIEW_SESSIONS)

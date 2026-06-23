@@ -68,7 +68,16 @@ async function main() {
     update: {},
     create: { email: 'admin@example.com', passwordHash: await bcrypt.hash('Admin123!', 12), fullName: 'Sample IT Admin', role: Role.ADMIN },
   });
-  const adminPermissionCodes = [PermissionCode.CAN_VIEW_SESSIONS, PermissionCode.CAN_VIEW_ISSUES, PermissionCode.CAN_APPROVE_OUTCHECK, PermissionCode.CAN_RESOLVE_ISSUES, PermissionCode.CAN_VIEW_REPORTS];
+  const adminPermissionCodes = [
+    PermissionCode.CAN_VIEW_COUNTERS,
+    PermissionCode.CAN_VIEW_SESSIONS,
+    PermissionCode.CAN_VIEW_ISSUES,
+    PermissionCode.CAN_RESOLVE_ISSUES,
+    PermissionCode.CAN_APPROVE_OUTCHECK,
+    PermissionCode.CAN_VIEW_REPORTS,
+    PermissionCode.CAN_EXPORT_REPORTS,
+    PermissionCode.CAN_VIEW_AUDIT_LOGS,
+  ];
   const permissions = await prisma.permission.findMany({ where: { code: { in: adminPermissionCodes } } });
   for (const permission of permissions) {
     await prisma.userPermission.upsert({

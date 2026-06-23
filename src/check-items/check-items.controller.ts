@@ -23,12 +23,14 @@ export class CheckItemsController {
   }
 
   @Get()
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
   @Permissions(PermissionCode.CAN_VIEW_DEVICES)
   list(@Query() query: PaginationDto & { category?: string; isActive?: boolean }) {
     return this.checkItems.list(query);
   }
 
   @Get(':id')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
   @Permissions(PermissionCode.CAN_VIEW_DEVICES)
   find(@Param('id') id: string) {
     return this.checkItems.find(id);

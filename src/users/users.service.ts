@@ -90,7 +90,7 @@ export class UsersService {
     await this.audit.record({
       user: actor,
       permissionUsed: 'ASSIGN_ADMIN_PERMISSIONS',
-      action: 'CHANGE_PERMISSIONS',
+      action: 'UPDATE_USER_PERMISSIONS',
       entityType: 'User',
       entityId: id,
       metadata: { permissions: dto.permissions },

@@ -23,12 +23,14 @@ export class UsersController {
   }
 
   @Get()
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
   @Permissions(PermissionCode.CAN_VIEW_USERS)
   list(@Query() query: PaginationDto & { role?: Role; companyId?: string }) {
     return this.users.list(query);
   }
 
   @Get(':id')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
   @Permissions(PermissionCode.CAN_VIEW_USERS)
   find(@Param('id') id: string) {
     return this.users.findById(id);

@@ -18,9 +18,33 @@ export class OutcheckService {
     private readonly notifications: NotificationsService,
   ) {}
 
+  private validateResultTargets(
+    results: SubmitPreCheckDto['results'],
+    sessionCounters: { counterId: string; counter: { devices: { id: string; counterId: string }[] } }[],
+  ) {
+    const counterIds = new Set(sessionCounters.map((row) => row.counterId));
+    const deviceCounterIds = new Map<string, string>();
+    for (const row of sessionCounters) {
+      for (const device of row.counter.devices) {
+        deviceCounterIds.set(device.id, device.counterId);
+      }
+    }
+
+    for (const result of results) {
+      if (!counterIds.has(result.counterId)) {
+        throw new BadRequestException(`Counter ${result.counterId} is not assigned to this session`);
+      }
+      if (result.deviceId) {
+        const deviceCounterId = deviceCounterIds.get(result.deviceId);
+        if (!deviceCounterId) throw new BadRequestException(`Device ${result.deviceId} is not assigned to this session`);
+        if (deviceCounterId !== result.counterId) throw new BadRequestException(`Device ${result.deviceId} is not linked to counter ${result.counterId}`);
+      }
+    }
+  }
+
   async start(sessionId: string, user: AuthUser) {
     const session = await this.sessions.find(sessionId, user);
-    if (user.role !== Role.COMPANY_USER) throw new ForbiddenException('Only company users can start OutCheck');
+    if (!([Role.COMPANY_USER, Role.SUPER_ADMIN] as Role[]).includes(user.role)) throw new ForbiddenException('Only company users can start OutCheck');
     if (session.status !== SessionStatus.OPERATING) throw new BadRequestException('OutCheck requires OPERATING session');
     const outCheck = await this.prisma.$transaction(async (tx) => {
       await tx.session.update({ where: { id: sessionId }, data: { status: SessionStatus.OUTCHECK_IN_PROGRESS, actualOutCheckStartAt: new Date() } });
@@ -32,8 +56,9 @@ export class OutcheckService {
 
   async submit(sessionId: string, dto: SubmitPreCheckDto, user: AuthUser) {
     const session = await this.sessions.find(sessionId, user);
-    if (user.role !== Role.COMPANY_USER) throw new ForbiddenException('Only company users can submit OutCheck');
+    if (!([Role.COMPANY_USER, Role.SUPER_ADMIN] as Role[]).includes(user.role)) throw new ForbiddenException('Only company users can submit OutCheck');
     if (session.status !== SessionStatus.OUTCHECK_IN_PROGRESS) throw new BadRequestException('OutCheck is not in progress');
+    this.validateResultTargets(dto.results, session.counters);
     const checkItems = await this.prisma.checkItem.findMany({ where: { id: { in: dto.results.map((r) => r.checkItemId) }, isActive: true } });
     const itemMap = new Map(checkItems.map((item) => [item.id, item]));
     for (const result of dto.results) {

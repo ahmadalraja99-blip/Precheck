@@ -18,6 +18,10 @@ export class CreateSessionDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @IsOptional()
+  @IsString()
+  note?: string;
 }
 
 export class CancelSessionDto {

@@ -17,12 +17,14 @@ export class IssuesController {
   constructor(private readonly issues: IssuesService) {}
 
   @Get()
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
   @Permissions(PermissionCode.CAN_VIEW_ISSUES)
   list(@Query() query: PaginationDto & { status?: IssueStatus; sessionId?: string; counterId?: string }) {
     return this.issues.list(query);
   }
 
   @Get(':id')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
   @Permissions(PermissionCode.CAN_VIEW_ISSUES)
   find(@Param('id') id: string) {
     return this.issues.find(id);
@@ -36,18 +38,21 @@ export class IssuesController {
   }
 
   @Patch(':id/assign')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
   @Permissions(PermissionCode.CAN_RESOLVE_ISSUES)
   assign(@Param('id') id: string, @Body() dto: AssignIssueDto, @CurrentUser() user: AuthUser) {
     return this.issues.setInProgress(id, user, dto.note);
   }
 
   @Patch(':id/resolve')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
   @Permissions(PermissionCode.CAN_RESOLVE_ISSUES)
   resolve(@Param('id') id: string, @Body() dto: ResolveIssueDto, @CurrentUser() user: AuthUser) {
     return this.issues.resolve(id, dto, user);
   }
 
   @Patch(':id/close')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
   @Permissions(PermissionCode.CAN_RESOLVE_ISSUES)
   close(@Param('id') id: string, @CurrentUser() user: AuthUser) {
     return this.issues.close(id, user);

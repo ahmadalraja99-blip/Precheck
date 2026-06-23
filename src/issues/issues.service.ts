@@ -71,7 +71,21 @@ export class IssuesService {
           where: { counterId: issue.counterId, status: { in: [IssueStatus.OPEN, IssueStatus.IN_PROGRESS] } },
         });
         const activeSessionCounter = await tx.sessionCounter.findFirst({
-          where: { counterId: issue.counterId, session: { status: { in: [SessionStatus.SCHEDULED, SessionStatus.PRECHECK_IN_PROGRESS, SessionStatus.OPERATING, SessionStatus.OUTCHECK_IN_PROGRESS, SessionStatus.OUTCHECK_PENDING_APPROVAL] } } },
+          where: {
+            counterId: issue.counterId,
+            session: {
+              status: {
+                in: [
+                  SessionStatus.SCHEDULED,
+                  SessionStatus.PRECHECK_IN_PROGRESS,
+                  SessionStatus.PRECHECK_BLOCKED,
+                  SessionStatus.OPERATING,
+                  SessionStatus.OUTCHECK_IN_PROGRESS,
+                  SessionStatus.OUTCHECK_PENDING_APPROVAL,
+                ],
+              },
+            },
+          },
         });
         if (openCount === 0 && !activeSessionCounter) {
           await this.counterStatus.transitionMany([issue.counterId], CounterStatus.AVAILABLE, user, 'Issue resolved', tx);

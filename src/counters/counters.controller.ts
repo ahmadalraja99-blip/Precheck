@@ -37,6 +37,7 @@ export class CountersController {
   }
 
   @Get(':id')
+  @Roles(Role.MOVEMENT_SUPERVISOR, Role.SUPER_ADMIN, Role.ADMIN)
   @Permissions(PermissionCode.CAN_VIEW_COUNTERS)
   find(@Param('id') id: string) {
     return this.counters.find(id);
