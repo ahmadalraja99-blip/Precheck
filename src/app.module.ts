@@ -20,12 +20,21 @@ import { SchedulerModule } from './scheduler/scheduler.module';
 import { AuditModule } from './audit/audit.module';
 import { StorageModule } from './storage/storage.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { OperationsModule } from './operations/operations.module';
+import { MovementCategoriesModule } from './movement-categories/movement-categories.module';
+import { DailyDutiesModule } from './daily-duties/daily-duties.module';
+import { DailyCompanySessionsModule } from './daily-company-sessions/daily-company-sessions.module';
+import { FlightsModule } from './flights/flights.module';
+import { SessionFlightsModule } from './session-flights/session-flights.module';
+import { CounterReservationsModule } from './counter-reservations/counter-reservations.module';
+import { OperationalReportsModule } from './operational-reports/operational-reports.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     ScheduleModule.forRoot(),
     PrismaModule,
+    OperationsModule,
     AuditModule,
     NotificationsModule,
     StorageModule,
@@ -44,6 +53,13 @@ import { PrismaModule } from './prisma/prisma.module';
     ApprovalsModule,
     ReportsModule,
     SchedulerModule,
+    MovementCategoriesModule,
+    DailyDutiesModule,
+    DailyCompanySessionsModule,
+    FlightsModule,
+    SessionFlightsModule,
+    CounterReservationsModule,
+    OperationalReportsModule,
   ],
 })
 export class AppModule {}

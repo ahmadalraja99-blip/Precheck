@@ -49,14 +49,51 @@ async function main() {
 
   const company = await prisma.company.upsert({
     where: { code: 'SYA' },
-    update: {},
+    update: { logoUrl: 'https://example.com/logos/syrian-air.png' },
     create: { name: 'Sample Airline', code: 'SYA', email: 'ops@example.com', phone: '+963000000000' },
+  });
+
+  const chamWings = await prisma.company.upsert({
+    where: { code: 'CWA' },
+    update: { name: 'Cham Wings', logoUrl: 'https://example.com/logos/cham-wings.png' },
+    create: {
+      name: 'Cham Wings',
+      code: 'CWA',
+      email: 'ops@chamwings.com',
+      logoUrl: 'https://example.com/logos/cham-wings.png',
+    },
+  });
+  const syrianAir = await prisma.company.upsert({
+    where: { code: 'SYR' },
+    update: { name: 'Syrian Air', logoUrl: 'https://example.com/logos/syrian-air.png' },
+    create: {
+      name: 'Syrian Air',
+      code: 'SYR',
+      email: 'ops@syrianair.com',
+      logoUrl: 'https://example.com/logos/syrian-air.png',
+    },
   });
 
   await prisma.user.upsert({
     where: { email: 'company.user@example.com' },
     update: {},
     create: { email: 'company.user@example.com', passwordHash: await bcrypt.hash('Company123!', 12), fullName: 'Sample Company User', role: Role.COMPANY_USER, companyId: company.id },
+  });
+  await prisma.user.upsert({
+    where: { email: 'company.user2@example.com' },
+    update: {
+      passwordHash: await bcrypt.hash('Company123!', 12),
+      companyId: syrianAir.id,
+      role: Role.COMPANY_USER,
+      isActive: true,
+    },
+    create: {
+      email: 'company.user2@example.com',
+      passwordHash: await bcrypt.hash('Company123!', 12),
+      fullName: 'Syrian Air Company User',
+      role: Role.COMPANY_USER,
+      companyId: syrianAir.id,
+    },
   });
   await prisma.user.upsert({
     where: { email: 'movement.supervisor@example.com' },
@@ -68,6 +105,57 @@ async function main() {
     update: {},
     create: { email: 'admin@example.com', passwordHash: await bcrypt.hash('Admin123!', 12), fullName: 'Sample IT Admin', role: Role.ADMIN },
   });
+
+  const movementCategories = [
+    ['CAT_A', 'Category A'],
+    ['CAT_B', 'Category B'],
+    ['CAT_C', 'Category C'],
+    ['CAT_D', 'Category D'],
+  ] as const;
+  const categoryByCode = new Map<string, string>();
+  for (const [code, name] of movementCategories) {
+    const category = await prisma.movementCategory.upsert({
+      where: { code },
+      update: { name, isActive: true },
+      create: { code, name },
+    });
+    categoryByCode.set(code, category.id);
+  }
+
+  const movementPasswordHash = await bcrypt.hash('Movement@123', 12);
+  for (let index = 0; index < movementCategories.length; index += 1) {
+    const [code] = movementCategories[index];
+    const email = `movement.category${index + 1}@example.com`;
+    const supervisor = await prisma.user.upsert({
+      where: { email },
+      update: {
+        passwordHash: movementPasswordHash,
+        fullName: `Movement ${code} Supervisor`,
+        role: Role.MOVEMENT_SUPERVISOR,
+        companyId: null,
+        isActive: true,
+      },
+      create: {
+        email,
+        passwordHash: movementPasswordHash,
+        fullName: `Movement ${code} Supervisor`,
+        role: Role.MOVEMENT_SUPERVISOR,
+      },
+    });
+    await prisma.movementCategoryAssignment.upsert({
+      where: {
+        userId_movementCategoryId: {
+          userId: supervisor.id,
+          movementCategoryId: categoryByCode.get(code)!,
+        },
+      },
+      update: { isActive: true },
+      create: {
+        userId: supervisor.id,
+        movementCategoryId: categoryByCode.get(code)!,
+      },
+    });
+  }
   const adminPermissionCodes = [
     PermissionCode.CAN_VIEW_COUNTERS,
     PermissionCode.CAN_VIEW_SESSIONS,
@@ -87,7 +175,7 @@ async function main() {
     });
   }
 
-  console.log(`Seed completed. Super admin: ${superAdmin.email}`);
+  console.log(`Seed completed. Super admin: ${superAdmin.email}; airlines: ${chamWings.name}, ${syrianAir.name}`);
 }
 
 main()

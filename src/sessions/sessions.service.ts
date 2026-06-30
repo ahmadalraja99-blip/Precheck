@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { CounterStatus, NotificationType, Prisma, Role, SessionStatus } from '@prisma/client';
+import { CounterReservationStatus, CounterStatus, NotificationType, Prisma, Role, SessionStatus } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
 import { PaginationDto, paginate } from '../common/dto/pagination.dto';
 import { AuthUser } from '../common/types/auth-user.type';
@@ -56,6 +56,17 @@ export class SessionsService {
         },
       });
       if (overlapping) throw new ConflictException('Selected counter has an overlapping active session');
+      const operationalReservation = await tx.counterReservation.findFirst({
+        where: {
+          counterId: { in: dto.counterIds },
+          status: { in: [CounterReservationStatus.SCHEDULED, CounterReservationStatus.ACTIVE] },
+          reservedFrom: { lt: end },
+          reservedTo: { gt: start },
+        },
+      });
+      if (operationalReservation) {
+        throw new ConflictException('Selected counter has an overlapping flight reservation');
+      }
       const created = await tx.session.create({
         data: {
           companyId: dto.companyId,

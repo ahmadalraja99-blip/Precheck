@@ -6,6 +6,8 @@ import { sanitizeUser } from '../common/utils/sanitize-user';
 import { PrismaService } from '../prisma/prisma.service';
 import { RolesPermissionsService } from '../roles-permissions/roles-permissions.service';
 import { LoginDto, RefreshDto } from './dto/auth.dto';
+import { OperationAccessService } from '../operations/operation-access.service';
+import { Role } from '@prisma/client';
 
 @Injectable()
 export class AuthService {
@@ -14,6 +16,7 @@ export class AuthService {
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
     private readonly rbac: RolesPermissionsService,
+    private readonly operationAccess: OperationAccessService,
   ) {}
 
   private async sign(userId: string, email: string) {
@@ -57,9 +60,38 @@ export class AuthService {
   }
 
   async me(userId: string) {
-    const user = await this.prisma.user.findUnique({ where: { id: userId }, include: { company: true } });
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        company: true,
+        movementCategoryAssignments: {
+          where: { isActive: true, movementCategory: { isActive: true } },
+          include: { movementCategory: true },
+        },
+      },
+    });
     if (!user) throw new UnauthorizedException('User not found');
     const permissions = await this.rbac.getUserPermissionCodes(user.id, user.role);
-    return { ...sanitizeUser(user), permissions };
+    const safe = sanitizeUser(user);
+    if (user.role !== Role.MOVEMENT_SUPERVISOR) return { ...safe, permissions };
+    const activeDailyDuty = await this.operationAccess.activeDutyForUser({
+      id: user.id,
+      email: user.email,
+      fullName: user.fullName,
+      role: user.role,
+      companyId: user.companyId,
+      permissions,
+    });
+    const carryOverCount = await this.prisma.dailySessionFlight.count({
+      where: { isCarryOver: true, handoverStatus: { in: ['PENDING', 'ACCEPTED'] } },
+    });
+    return {
+      ...safe,
+      movementCategoryAssignments: undefined,
+      permissions,
+      assignedMovementCategories: user.movementCategoryAssignments.map((item) => item.movementCategory),
+      activeDailyDuty,
+      carryOverCount,
+    };
   }
 }

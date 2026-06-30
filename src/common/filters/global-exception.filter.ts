@@ -13,11 +13,20 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         : exception instanceof Error
           ? exception.message
           : 'Unexpected server error';
+    const details =
+      typeof exceptionResponse === 'object' && exceptionResponse
+        ? Object.fromEntries(
+            Object.entries(exceptionResponse as Record<string, unknown>).filter(
+              ([key]) => !['message', 'statusCode', 'error'].includes(key),
+            ),
+          )
+        : {};
 
     response.status(status).json({
       success: false,
       statusCode: status,
       message,
+      ...details,
       timestamp: new Date().toISOString(),
       path: ctx.getRequest().url,
     });

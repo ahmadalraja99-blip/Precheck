@@ -1,0 +1,276 @@
+{
+  "info": {
+    "_postman_id": "cc728d89-acde-4f77-a431-1c3b2d614f1a",
+    "name": "Daily Duty / Flight Operations",
+    "description": "Daily movement duty, flights, counter reservations, carry-over, logos, and operational report records.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }]
+  },
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login Super Admin",
+          "event": [{ "listen": "test", "script": { "exec": ["const d=pm.response.json().data; pm.environment.set('accessToken',d.accessToken);"] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"email\":\"super.admin@example.com\",\"password\":\"ChangeMe123!\"}" },
+            "url": "{{baseUrl}}/auth/login"
+          }
+        },
+        {
+          "name": "Login Movement Category 1",
+          "event": [{ "listen": "test", "script": { "exec": ["const d=pm.response.json().data; pm.environment.set('accessToken',d.accessToken);"] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"email\":\"movement.category1@example.com\",\"password\":\"Movement@123\"}" },
+            "url": "{{baseUrl}}/auth/login"
+          }
+        },
+        {
+          "name": "Login Movement Category 2",
+          "event": [{ "listen": "test", "script": { "exec": ["const d=pm.response.json().data; pm.environment.set('accessToken',d.accessToken);"] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"email\":\"movement.category2@example.com\",\"password\":\"Movement@123\"}" },
+            "url": "{{baseUrl}}/auth/login"
+          }
+        },
+        { "name": "Auth Me", "request": { "method": "GET", "url": "{{baseUrl}}/auth/me" } }
+      ]
+    },
+    {
+      "name": "Movement Categories",
+      "item": [
+        {
+          "name": "Get Available Movement Categories",
+          "event": [{ "listen": "test", "script": { "exec": ["const d=pm.response.json().data; if(d[0]) pm.environment.set('movementCategoryId',d[0].id);"] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}/movement-categories/available" }
+        }
+      ]
+    },
+    {
+      "name": "Daily Duties",
+      "item": [
+        {
+          "name": "Activate Daily Duty",
+          "event": [{ "listen": "test", "script": { "exec": ["const d=pm.response.json().data; pm.environment.set('dailyDutyId',d.id);"] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"movementCategoryId\":\"{{movementCategoryId}}\"}" },
+            "url": "{{baseUrl}}/daily-duties/activate"
+          }
+        },
+        { "name": "Get My Active DailyDuty", "request": { "method": "GET", "url": "{{baseUrl}}/daily-duties/my/active" } },
+        { "name": "Get My Carry-over", "request": { "method": "GET", "url": "{{baseUrl}}/daily-duties/my/carry-over" } },
+        { "name": "List Daily Duties", "request": { "method": "GET", "url": "{{baseUrl}}/daily-duties?page=1&limit=20" } },
+        { "name": "Get DailyDuty by ID", "request": { "method": "GET", "url": "{{baseUrl}}/daily-duties/{{dailyDutyId}}" } },
+        {
+          "name": "Close DailyDuty",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"notes\":\"Duty handover\"}" },
+            "url": "{{baseUrl}}/daily-duties/{{dailyDutyId}}/close"
+          }
+        },
+        {
+          "name": "Cancel DailyDuty",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"notes\":\"Administrative cancellation\"}" },
+            "url": "{{baseUrl}}/daily-duties/{{dailyDutyId}}/cancel"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Companies",
+      "item": [
+        {
+          "name": "List Companies with Logos",
+          "event": [{ "listen": "test", "script": { "exec": ["const d=pm.response.json().data.items; if(d[0]) pm.environment.set('companyId',d[0].id);"] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}/companies?limit=100" }
+        },
+        {
+          "name": "Update Company Logo",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"logoUrl\":\"https://example.com/logo.png\"}" },
+            "url": "{{baseUrl}}/companies/{{companyId}}/logo"
+          }
+        },
+        {
+          "name": "Helper - List Counters",
+          "event": [{ "listen": "test", "script": { "exec": ["const d=pm.response.json().data.items; if(d[0]) pm.environment.set('counterId',d[0].id);"] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}/counters?limit=100" }
+        }
+      ]
+    },
+    {
+      "name": "Daily Company Sessions",
+      "item": [
+        {
+          "name": "Create Daily Company Session",
+          "event": [{ "listen": "test", "script": { "exec": ["const d=pm.response.json().data; pm.environment.set('dailyCompanySessionId',d.id);"] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"dailyDutyId\":\"{{dailyDutyId}}\",\"companyId\":\"{{companyId}}\",\"date\":\"2026-07-01T00:00:00.000Z\",\"plannedFlightsCount\":2,\"notes\":\"Daily operations\"}" },
+            "url": "{{baseUrl}}/daily-company-sessions"
+          }
+        },
+        {
+          "name": "Get Or Create Daily Company Session",
+          "event": [{ "listen": "test", "script": { "exec": ["const d=pm.response.json().data; pm.environment.set('dailyCompanySessionId',d.session.id);"] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"dailyDutyId\":\"{{dailyDutyId}}\",\"companyId\":\"{{companyId}}\",\"date\":\"2026-06-27T00:00:00.000Z\",\"plannedFlightsCount\":3,\"notes\":\"Optional daily operations note\"}" },
+            "url": "{{baseUrl}}/daily-company-sessions/get-or-create"
+          }
+        },
+        { "name": "List Daily Company Sessions", "request": { "method": "GET", "url": "{{baseUrl}}/daily-company-sessions?page=1&limit=20" } },
+        { "name": "Get Daily Company Session", "request": { "method": "GET", "url": "{{baseUrl}}/daily-company-sessions/{{dailyCompanySessionId}}" } },
+        { "name": "Open Daily Company Session", "request": { "method": "PATCH", "url": "{{baseUrl}}/daily-company-sessions/{{dailyCompanySessionId}}/open" } },
+        { "name": "Close Daily Company Session", "request": { "method": "PATCH", "url": "{{baseUrl}}/daily-company-sessions/{{dailyCompanySessionId}}/close" } },
+        { "name": "Cancel Daily Company Session", "request": { "method": "PATCH", "url": "{{baseUrl}}/daily-company-sessions/{{dailyCompanySessionId}}/cancel" } }
+      ]
+    },
+    {
+      "name": "Flights",
+      "item": [
+        {
+          "name": "Create Flight",
+          "event": [{ "listen": "test", "script": { "exec": ["const d=pm.response.json().data; pm.environment.set('flightId',d.id);"] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"flightNumber\":\"6Q701\",\"companyId\":\"{{companyId}}\",\"origin\":\"DAM\",\"destination\":\"DXB\",\"scheduledDepartureAt\":\"2026-07-01T14:00:00.000Z\",\"scheduledArrivalAt\":\"2026-07-01T17:00:00.000Z\",\"aircraftType\":\"A320\",\"source\":\"MANUAL\"}" },
+            "url": "{{baseUrl}}/flights"
+          }
+        },
+        { "name": "List Flights", "request": { "method": "GET", "url": "{{baseUrl}}/flights?page=1&limit=20" } },
+        { "name": "Get Flight", "request": { "method": "GET", "url": "{{baseUrl}}/flights/{{flightId}}" } },
+        {
+          "name": "Update Flight",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"aircraftType\":\"A321\"}" },
+            "url": "{{baseUrl}}/flights/{{flightId}}"
+          }
+        },
+        {
+          "name": "Update Flight Status",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"status\":\"CHECKIN_OPEN\"}" },
+            "url": "{{baseUrl}}/flights/{{flightId}}/status"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Session Flights",
+      "item": [
+        {
+          "name": "Add Existing Flight to Daily Company Session",
+          "event": [{ "listen": "test", "script": { "exec": ["const d=pm.response.json().data.sessionFlight; pm.environment.set('sessionFlightId',d.id);"] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"flightId\":\"{{flightId}}\",\"checkInStartsAt\":\"2026-07-01T11:00:00.000Z\",\"checkInEndsAt\":\"2026-07-01T13:30:00.000Z\"}" },
+            "url": "{{baseUrl}}/daily-company-sessions/{{dailyCompanySessionId}}/flights"
+          }
+        },
+        {
+          "name": "Create Flight Inline and Add to Daily Company Session",
+          "event": [{ "listen": "test", "script": { "exec": ["const d=pm.response.json().data.sessionFlight; pm.environment.set('sessionFlightId',d.id); pm.environment.set('flightId',d.flightId);"] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"flight\":{\"flightNumber\":\"6Q702\",\"companyId\":\"{{companyId}}\",\"origin\":\"DAM\",\"destination\":\"CAI\",\"scheduledDepartureAt\":\"2026-07-01T18:00:00.000Z\",\"source\":\"MANUAL\"},\"checkInStartsAt\":\"2026-07-01T14:00:00.000Z\",\"checkInEndsAt\":\"2026-07-01T17:30:00.000Z\"}" },
+            "url": "{{baseUrl}}/daily-company-sessions/{{dailyCompanySessionId}}/flights"
+          }
+        },
+        { "name": "List Daily Company Session Flights", "request": { "method": "GET", "url": "{{baseUrl}}/daily-company-sessions/{{dailyCompanySessionId}}/flights" } },
+        { "name": "Get Session Flight", "request": { "method": "GET", "url": "{{baseUrl}}/session-flights/{{sessionFlightId}}" } },
+        {
+          "name": "Update Session Flight Status",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"status\":\"OPERATION\"}" },
+            "url": "{{baseUrl}}/session-flights/{{sessionFlightId}}/status"
+          }
+        },
+        { "name": "Cancel Session Flight", "request": { "method": "PATCH", "url": "{{baseUrl}}/session-flights/{{sessionFlightId}}/cancel" } },
+        { "name": "Accept Carry-over Flight", "request": { "method": "POST", "url": "{{baseUrl}}/session-flights/{{sessionFlightId}}/accept-carry-over" } }
+      ]
+    },
+    {
+      "name": "Counter Reservations",
+      "item": [
+        {
+          "name": "Reserve Counters for Session Flight",
+          "event": [{ "listen": "test", "script": { "exec": ["const d=pm.response.json().data.reservations; if(d[0]) pm.environment.set('counterReservationId',d[0].id);"] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"counterIds\":[\"{{counterId}}\"],\"reservedFrom\":\"2026-07-01T11:00:00.000Z\",\"reservedTo\":\"2026-07-01T13:30:00.000Z\"}" },
+            "url": "{{baseUrl}}/session-flights/{{sessionFlightId}}/counter-reservations"
+          }
+        },
+        { "name": "List Counter Reservations", "request": { "method": "GET", "url": "{{baseUrl}}/counter-reservations?page=1&limit=20" } },
+        { "name": "List Session Flight Counter Reservations", "request": { "method": "GET", "url": "{{baseUrl}}/session-flights/{{sessionFlightId}}/counter-reservations" } },
+        { "name": "Counter Reservations Status Map", "request": { "method": "GET", "url": "{{baseUrl}}/counter-reservations/status-map" } },
+        { "name": "Release Counter Reservation", "request": { "method": "PATCH", "url": "{{baseUrl}}/counter-reservations/{{counterReservationId}}/release" } },
+        { "name": "Cancel Counter Reservation", "request": { "method": "PATCH", "url": "{{baseUrl}}/counter-reservations/{{counterReservationId}}/cancel" } }
+      ]
+    },
+    {
+      "name": "Reports",
+      "item": [
+        {
+          "name": "Generate Flight Report",
+          "event": [{ "listen": "test", "script": { "exec": ["const d=pm.response.json().data; pm.environment.set('flightReportId',d.id);"] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"format\":\"PDF\"}" },
+            "url": "{{baseUrl}}/session-flights/{{sessionFlightId}}/reports/generate"
+          }
+        },
+        { "name": "List Flight Reports", "request": { "method": "GET", "url": "{{baseUrl}}/session-flights/{{sessionFlightId}}/reports" } },
+        {
+          "name": "Generate Daily Company Report",
+          "event": [{ "listen": "test", "script": { "exec": ["const d=pm.response.json().data; pm.environment.set('dailyCompanyReportId',d.id);"] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"format\":\"PDF\"}" },
+            "url": "{{baseUrl}}/daily-company-sessions/{{dailyCompanySessionId}}/reports/generate"
+          }
+        },
+        { "name": "List Daily Company Reports", "request": { "method": "GET", "url": "{{baseUrl}}/daily-company-sessions/{{dailyCompanySessionId}}/reports" } },
+        { "name": "Historical Flight Reports", "request": { "method": "GET", "url": "{{baseUrl}}/operational-reports/flights?page=1&limit=20" } },
+        { "name": "Historical Daily Reports", "request": { "method": "GET", "url": "{{baseUrl}}/operational-reports/daily?page=1&limit=20" } }
+      ]
+    }
+  ]
+}

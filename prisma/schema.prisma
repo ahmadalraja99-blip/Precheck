@@ -125,46 +125,126 @@ enum ReportStatus {
   FAILED
 }
 
+enum DailyDutyStatus {
+  OPEN
+  CLOSED
+  EXPIRED
+  CANCELLED
+}
+
+enum DailyCompanySessionStatus {
+  SCHEDULED
+  OPEN
+  CLOSED
+  CANCELLED
+  CARRY_OVER
+}
+
+enum FlightStatus {
+  SCHEDULED
+  CHECKIN_OPEN
+  CHECKIN_CLOSED
+  DEPARTED
+  CANCELLED
+}
+
+enum FlightSource {
+  MANUAL
+  IMPORTED
+}
+
+enum DailySessionFlightStatus {
+  SCHEDULED
+  PRECHECK_PENDING
+  PRECHECK_DONE
+  OPERATION
+  OUTCHECK_PENDING
+  CLOSED
+  CANCELLED
+  CARRY_OVER
+}
+
+enum CounterReservationStatus {
+  SCHEDULED
+  ACTIVE
+  RELEASED
+  CANCELLED
+}
+
+enum HandoverStatus {
+  NONE
+  PENDING
+  ACCEPTED
+  COMPLETED
+}
+
+enum OperationalReportFormat {
+  PDF
+  EXCEL
+}
+
+enum OperationalReportGenerationType {
+  MANUAL
+  AUTOMATIC_DUTY_EXPIRATION
+  AUTOMATIC_FINAL_CLOSE
+}
+
 model User {
-  id                 String             @id @default(uuid())
-  email              String             @unique
-  passwordHash       String
-  fullName           String
-  role               Role
-  companyId          String?
-  company            Company?           @relation(fields: [companyId], references: [id])
-  isActive           Boolean            @default(true)
-  lastLoginAt        DateTime?
-  refreshTokenHash   String?
-  permissions        UserPermission[]
-  createdSessions    Session[]          @relation("SessionCreatedBy")
-  preChecks          PreCheck[]          @relation("PreCheckSignedBy")
-  outChecks          OutCheck[]          @relation("OutCheckSignedBy")
-  approvals          Approval[]
-  createdIssues      Issue[]            @relation("IssueCreatedBy")
-  resolvedIssues     Issue[]            @relation("IssueResolvedBy")
-  generatedReports   Report[]
-  targetedNotifications Notification[]  @relation("TargetUserNotifications")
-  auditLogs          AuditLog[]
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
+  id                           String                       @id @default(uuid())
+  email                        String                       @unique
+  passwordHash                 String
+  fullName                     String
+  role                         Role
+  companyId                    String?
+  company                      Company?                     @relation(fields: [companyId], references: [id])
+  isActive                     Boolean                      @default(true)
+  lastLoginAt                  DateTime?
+  refreshTokenHash             String?
+  permissions                  UserPermission[]
+  createdSessions              Session[]                    @relation("SessionCreatedBy")
+  preChecks                    PreCheck[]                   @relation("PreCheckSignedBy")
+  outChecks                    OutCheck[]                   @relation("OutCheckSignedBy")
+  approvals                    Approval[]
+  createdIssues                Issue[]                      @relation("IssueCreatedBy")
+  resolvedIssues               Issue[]                      @relation("IssueResolvedBy")
+  generatedReports             Report[]
+  movementCategoryAssignments  MovementCategoryAssignment[]
+  movementDailyDuties          DailyDuty[]                  @relation("DailyDutyMovementSupervisor")
+  createdDailyDuties           DailyDuty[]                  @relation("DailyDutyCreatedBy")
+  createdDailyCompanySessions  DailyCompanySession[]        @relation("DailyCompanySessionCreatedBy")
+  createdSessionFlights        DailySessionFlight[]         @relation("DailySessionFlightCreatedBy")
+  createdCounterReservations   CounterReservation[]         @relation("CounterReservationCreatedBy")
+  generatedFlightReports       FlightReport[]               @relation("FlightReportGeneratedBy")
+  generatedDailyCompanyReports DailyCompanyReport[]         @relation("DailyCompanyReportGeneratedBy")
+  targetedNotifications        Notification[]               @relation("TargetUserNotifications")
+  auditLogs                    AuditLog[]
+  createdAt                    DateTime                     @default(now())
+  updatedAt                    DateTime                     @updatedAt
 
   @@index([role])
   @@index([companyId])
 }
 
 model Company {
-  id            String         @id @default(uuid())
-  name          String
-  code          String         @unique
-  email         String?
-  phone         String?
-  isActive      Boolean        @default(true)
-  users         User[]
-  sessions      Session[]
-  notifications Notification[]
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  id                   String                @id @default(uuid())
+  name                 String
+  code                 String                @unique
+  email                String?
+  phone                String?
+  logoUrl              String?
+  logoPath             String?
+  isActive             Boolean               @default(true)
+  users                User[]
+  sessions             Session[]
+  dailyCompanySessions DailyCompanySession[]
+  flights              Flight[]
+  dailySessionFlights  DailySessionFlight[]
+  counterReservations  CounterReservation[]
+  flightReports        FlightReport[]
+  dailyCompanyReports  DailyCompanyReport[]
+  notifications        Notification[]
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
 }
 
 model Permission {
@@ -176,50 +256,51 @@ model Permission {
 }
 
 model UserPermission {
-  id           String       @id @default(uuid())
+  id           String     @id @default(uuid())
   userId       String
   permissionId String
-  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  permission   Permission   @relation(fields: [permissionId], references: [id], onDelete: Cascade)
-  createdAt    DateTime     @default(now())
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
 
   @@unique([userId, permissionId])
   @@index([userId])
 }
 
 model Counter {
-  id              String           @id @default(uuid())
-  code            String           @unique
-  name            String
-  status          CounterStatus    @default(AVAILABLE)
-  notes           String?
-  devices         Device[]
-  sessionCounters SessionCounter[]
-  preCheckResults PreCheckItemResult[]
-  outCheckResults OutCheckItemResult[]
-  issues          Issue[]
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
+  id                  String               @id @default(uuid())
+  code                String               @unique
+  name                String
+  status              CounterStatus        @default(AVAILABLE)
+  notes               String?
+  devices             Device[]
+  sessionCounters     SessionCounter[]
+  preCheckResults     PreCheckItemResult[]
+  outCheckResults     OutCheckItemResult[]
+  issues              Issue[]
+  counterReservations CounterReservation[]
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
 
   @@index([status])
 }
 
 model Device {
-  id              String          @id @default(uuid())
+  id              String               @id @default(uuid())
   counterId       String
-  counter         Counter         @relation(fields: [counterId], references: [id])
+  counter         Counter              @relation(fields: [counterId], references: [id])
   name            String
   type            String
   serialNumber    String?
   assetTag        String?
-  status          DeviceStatus    @default(ACTIVE)
+  status          DeviceStatus         @default(ACTIVE)
   notes           String?
-  isActive        Boolean         @default(true)
+  isActive        Boolean              @default(true)
   preCheckResults PreCheckItemResult[]
   outCheckResults OutCheckItemResult[]
   issues          Issue[]
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
 
   @@index([counterId])
   @@index([status])
@@ -244,27 +325,27 @@ model CheckItem {
 }
 
 model Session {
-  id                   String           @id @default(uuid())
-  companyId            String
-  company              Company          @relation(fields: [companyId], references: [id])
-  createdById          String
-  createdBy            User             @relation("SessionCreatedBy", fields: [createdById], references: [id])
-  status               SessionStatus    @default(SCHEDULED)
-  plannedStartAt       DateTime
-  plannedEndAt         DateTime
-  actualPreCheckStartAt DateTime?
+  id                     String           @id @default(uuid())
+  companyId              String
+  company                Company          @relation(fields: [companyId], references: [id])
+  createdById            String
+  createdBy              User             @relation("SessionCreatedBy", fields: [createdById], references: [id])
+  status                 SessionStatus    @default(SCHEDULED)
+  plannedStartAt         DateTime
+  plannedEndAt           DateTime
+  actualPreCheckStartAt  DateTime?
   actualOperationStartAt DateTime?
-  actualOutCheckStartAt DateTime?
-  actualClosedAt       DateTime?
-  notes                String?
-  counters             SessionCounter[]
-  preChecks            PreCheck[]
-  outChecks            OutCheck[]
-  issues               Issue[]
-  approvals            Approval[]
-  reports              Report[]
-  createdAt            DateTime         @default(now())
-  updatedAt            DateTime         @updatedAt
+  actualOutCheckStartAt  DateTime?
+  actualClosedAt         DateTime?
+  notes                  String?
+  counters               SessionCounter[]
+  preChecks              PreCheck[]
+  outChecks              OutCheck[]
+  issues                 Issue[]
+  approvals              Approval[]
+  reports                Report[]
+  createdAt              DateTime         @default(now())
+  updatedAt              DateTime         @updatedAt
 
   @@index([companyId])
   @@index([status])
@@ -318,64 +399,64 @@ model PreCheckItemResult {
 }
 
 model OutCheck {
-  id         String                @id @default(uuid())
+  id         String               @id @default(uuid())
   sessionId  String
-  session    Session               @relation(fields: [sessionId], references: [id])
+  session    Session              @relation(fields: [sessionId], references: [id])
   signedById String?
-  signedBy   User?                 @relation("OutCheckSignedBy", fields: [signedById], references: [id])
+  signedBy   User?                @relation("OutCheckSignedBy", fields: [signedById], references: [id])
   signedAt   DateTime?
   results    OutCheckItemResult[]
-  createdAt  DateTime              @default(now())
-  updatedAt  DateTime              @updatedAt
+  createdAt  DateTime             @default(now())
+  updatedAt  DateTime             @updatedAt
 
   @@index([sessionId])
 }
 
 model OutCheckItemResult {
-  id           String           @id @default(uuid())
-  outCheckId   String
-  outCheck     OutCheck         @relation(fields: [outCheckId], references: [id], onDelete: Cascade)
-  counterId    String
-  counter      Counter          @relation(fields: [counterId], references: [id])
-  deviceId     String?
-  device       Device?          @relation(fields: [deviceId], references: [id])
-  checkItemId  String
-  checkItem    CheckItem        @relation(fields: [checkItemId], references: [id])
-  value        CheckResultValue
-  note         String?
-  issueId      String?
-  issue        Issue?           @relation(fields: [issueId], references: [id])
-  createdAt    DateTime         @default(now())
+  id          String           @id @default(uuid())
+  outCheckId  String
+  outCheck    OutCheck         @relation(fields: [outCheckId], references: [id], onDelete: Cascade)
+  counterId   String
+  counter     Counter          @relation(fields: [counterId], references: [id])
+  deviceId    String?
+  device      Device?          @relation(fields: [deviceId], references: [id])
+  checkItemId String
+  checkItem   CheckItem        @relation(fields: [checkItemId], references: [id])
+  value       CheckResultValue
+  note        String?
+  issueId     String?
+  issue       Issue?           @relation(fields: [issueId], references: [id])
+  createdAt   DateTime         @default(now())
 
   @@index([outCheckId])
   @@index([counterId])
 }
 
 model Issue {
-  id              String              @id @default(uuid())
+  id              String               @id @default(uuid())
   sessionId       String
-  session         Session             @relation(fields: [sessionId], references: [id])
+  session         Session              @relation(fields: [sessionId], references: [id])
   counterId       String?
-  counter         Counter?            @relation(fields: [counterId], references: [id])
+  counter         Counter?             @relation(fields: [counterId], references: [id])
   deviceId        String?
-  device          Device?             @relation(fields: [deviceId], references: [id])
+  device          Device?              @relation(fields: [deviceId], references: [id])
   checkItemId     String?
-  checkItem       CheckItem?          @relation(fields: [checkItemId], references: [id])
+  checkItem       CheckItem?           @relation(fields: [checkItemId], references: [id])
   type            IssueType
-  severity        IssueSeverity       @default(MEDIUM)
-  status          IssueStatus         @default(OPEN)
+  severity        IssueSeverity        @default(MEDIUM)
+  status          IssueStatus          @default(OPEN)
   title           String
   description     String
   resolutionNote  String?
   createdById     String
-  createdBy       User                @relation("IssueCreatedBy", fields: [createdById], references: [id])
+  createdBy       User                 @relation("IssueCreatedBy", fields: [createdById], references: [id])
   resolvedById    String?
-  resolvedBy      User?               @relation("IssueResolvedBy", fields: [resolvedById], references: [id])
+  resolvedBy      User?                @relation("IssueResolvedBy", fields: [resolvedById], references: [id])
   preCheckResults PreCheckItemResult[]
   outCheckResults OutCheckItemResult[]
   resolvedAt      DateTime?
-  createdAt       DateTime            @default(now())
-  updatedAt       DateTime            @updatedAt
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
 
   @@index([sessionId])
   @@index([counterId])
@@ -413,19 +494,19 @@ model Report {
 }
 
 model Notification {
-  id              String            @id @default(uuid())
+  id              String           @id @default(uuid())
   title           String
   message         String
   type            NotificationType
   targetRole      Role?
   targetUserId    String?
-  targetUser      User?             @relation("TargetUserNotifications", fields: [targetUserId], references: [id])
+  targetUser      User?            @relation("TargetUserNotifications", fields: [targetUserId], references: [id])
   targetCompanyId String?
-  targetCompany   Company?          @relation(fields: [targetCompanyId], references: [id])
+  targetCompany   Company?         @relation(fields: [targetCompanyId], references: [id])
   entityType      String?
   entityId        String?
   readAt          DateTime?
-  createdAt       DateTime          @default(now())
+  createdAt       DateTime         @default(now())
 
   @@index([targetRole])
   @@index([targetUserId])
@@ -472,4 +553,248 @@ model AuditLog {
   @@index([action])
   @@index([entityType, entityId])
   @@index([createdAt])
+}
+
+model MovementCategory {
+  id          String  @id @default(uuid())
+  code        String  @unique
+  name        String
+  description String?
+  isActive    Boolean @default(true)
+
+  assignments          MovementCategoryAssignment[]
+  dailyDuties          DailyDuty[]
+  dailyCompanySessions DailyCompanySession[]
+  sessionFlights       DailySessionFlight[]
+  counterReservations  CounterReservation[]
+  flightReports        FlightReport[]
+  dailyCompanyReports  DailyCompanyReport[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model MovementCategoryAssignment {
+  id                 String  @id @default(uuid())
+  userId             String
+  movementCategoryId String
+  isActive           Boolean @default(true)
+
+  user             User             @relation(fields: [userId], references: [id])
+  movementCategory MovementCategory @relation(fields: [movementCategoryId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, movementCategoryId])
+  @@index([userId])
+  @@index([movementCategoryId])
+}
+
+model DailyDuty {
+  id                   String          @id @default(uuid())
+  movementCategoryId   String
+  movementSupervisorId String
+  status               DailyDutyStatus @default(OPEN)
+  activatedAt          DateTime
+  expiresAt            DateTime
+  closedAt             DateTime?
+  notes                String?
+  createdById          String
+
+  movementCategory   MovementCategory @relation(fields: [movementCategoryId], references: [id])
+  movementSupervisor User             @relation("DailyDutyMovementSupervisor", fields: [movementSupervisorId], references: [id])
+  createdBy          User             @relation("DailyDutyCreatedBy", fields: [createdById], references: [id])
+
+  dailyCompanySessions DailyCompanySession[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([movementCategoryId])
+  @@index([movementSupervisorId])
+  @@index([status])
+  @@index([activatedAt])
+  @@index([expiresAt])
+}
+
+model DailyCompanySession {
+  id                  String                    @id @default(uuid())
+  dailyDutyId         String
+  movementCategoryId  String
+  companyId           String
+  date                DateTime
+  plannedFlightsCount Int
+  status              DailyCompanySessionStatus @default(SCHEDULED)
+  openedAt            DateTime?
+  closedAt            DateTime?
+  notes               String?
+  createdById         String
+
+  dailyDuty        DailyDuty        @relation(fields: [dailyDutyId], references: [id])
+  movementCategory MovementCategory @relation(fields: [movementCategoryId], references: [id])
+  company          Company          @relation(fields: [companyId], references: [id])
+  createdBy        User             @relation("DailyCompanySessionCreatedBy", fields: [createdById], references: [id])
+
+  sessionFlights      DailySessionFlight[]
+  counterReservations CounterReservation[]
+  dailyCompanyReports DailyCompanyReport[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([dailyDutyId, companyId])
+  @@index([dailyDutyId])
+  @@index([movementCategoryId])
+  @@index([companyId])
+  @@index([date])
+  @@index([status])
+}
+
+model Flight {
+  id                   String       @id @default(uuid())
+  flightNumber         String
+  companyId            String
+  origin               String?
+  destination          String?
+  scheduledDepartureAt DateTime
+  scheduledArrivalAt   DateTime?
+  aircraftType         String?
+  status               FlightStatus @default(SCHEDULED)
+  source               FlightSource @default(MANUAL)
+
+  company        Company              @relation(fields: [companyId], references: [id])
+  sessionFlights DailySessionFlight[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([flightNumber])
+  @@index([scheduledDepartureAt])
+  @@index([status])
+}
+
+model DailySessionFlight {
+  id                     String                   @id @default(uuid())
+  dailyCompanySessionId  String
+  flightId               String
+  companyId              String
+  movementCategoryId     String
+  checkInStartsAt        DateTime
+  checkInEndsAt          DateTime
+  status                 DailySessionFlightStatus @default(SCHEDULED)
+  notes                  String?
+  createdById            String
+  isCarryOver            Boolean                  @default(false)
+  handoverStatus         HandoverStatus           @default(NONE)
+  carriedFromDailyDutyId String?
+  carriedToDailyDutyId   String?
+
+  dailyCompanySession DailyCompanySession @relation(fields: [dailyCompanySessionId], references: [id])
+  flight              Flight              @relation(fields: [flightId], references: [id])
+  company             Company             @relation(fields: [companyId], references: [id])
+  movementCategory    MovementCategory    @relation(fields: [movementCategoryId], references: [id])
+  createdBy           User                @relation("DailySessionFlightCreatedBy", fields: [createdById], references: [id])
+
+  counterReservations CounterReservation[]
+  flightReports       FlightReport[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([dailyCompanySessionId])
+  @@index([flightId])
+  @@index([companyId])
+  @@index([movementCategoryId])
+  @@index([checkInStartsAt])
+  @@index([checkInEndsAt])
+  @@index([status])
+  @@index([isCarryOver])
+  @@index([handoverStatus])
+}
+
+model CounterReservation {
+  id                    String                   @id @default(uuid())
+  counterId             String
+  dailySessionFlightId  String
+  dailyCompanySessionId String
+  companyId             String
+  movementCategoryId    String
+  reservedFrom          DateTime
+  reservedTo            DateTime
+  status                CounterReservationStatus @default(SCHEDULED)
+  createdById           String
+  isCarryOver           Boolean                  @default(false)
+
+  counter             Counter             @relation(fields: [counterId], references: [id])
+  dailySessionFlight  DailySessionFlight  @relation(fields: [dailySessionFlightId], references: [id])
+  dailyCompanySession DailyCompanySession @relation(fields: [dailyCompanySessionId], references: [id])
+  company             Company             @relation(fields: [companyId], references: [id])
+  movementCategory    MovementCategory    @relation(fields: [movementCategoryId], references: [id])
+  createdBy           User                @relation("CounterReservationCreatedBy", fields: [createdById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([counterId])
+  @@index([dailySessionFlightId])
+  @@index([dailyCompanySessionId])
+  @@index([companyId])
+  @@index([movementCategoryId])
+  @@index([reservedFrom])
+  @@index([reservedTo])
+  @@index([status])
+  @@index([isCarryOver])
+}
+
+model FlightReport {
+  id                   String                          @id @default(uuid())
+  dailySessionFlightId String
+  companyId            String
+  movementCategoryId   String
+  generatedById        String
+  format               OperationalReportFormat
+  generationType       OperationalReportGenerationType @default(MANUAL)
+  filePath             String?
+  metadata             Json?
+
+  dailySessionFlight DailySessionFlight @relation(fields: [dailySessionFlightId], references: [id])
+  company            Company            @relation(fields: [companyId], references: [id])
+  movementCategory   MovementCategory   @relation(fields: [movementCategoryId], references: [id])
+  generatedBy        User               @relation("FlightReportGeneratedBy", fields: [generatedById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([dailySessionFlightId])
+  @@index([companyId])
+  @@index([movementCategoryId])
+  @@index([generatedById])
+}
+
+model DailyCompanyReport {
+  id                    String                          @id @default(uuid())
+  dailyCompanySessionId String
+  companyId             String
+  movementCategoryId    String
+  generatedById         String
+  totalFlights          Int
+  format                OperationalReportFormat
+  generationType        OperationalReportGenerationType @default(MANUAL)
+  filePath              String?
+  metadata              Json?
+
+  dailyCompanySession DailyCompanySession @relation(fields: [dailyCompanySessionId], references: [id])
+  company             Company             @relation(fields: [companyId], references: [id])
+  movementCategory    MovementCategory    @relation(fields: [movementCategoryId], references: [id])
+  generatedBy         User                @relation("DailyCompanyReportGeneratedBy", fields: [generatedById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([dailyCompanySessionId])
+  @@index([companyId])
+  @@index([movementCategoryId])
+  @@index([generatedById])
 }

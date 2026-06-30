@@ -9,7 +9,7 @@ import { PermissionsGuard } from '../common/guards/permissions.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { AuthUser } from '../common/types/auth-user.type';
 import { CompaniesService } from './companies.service';
-import { CreateCompanyDto, UpdateCompanyDto } from './dto/company.dto';
+import { CreateCompanyDto, UpdateCompanyDto, UpdateCompanyLogoDto } from './dto/company.dto';
 
 @Controller('companies')
 @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
@@ -40,6 +40,12 @@ export class CompaniesController {
   @Roles(Role.SUPER_ADMIN)
   update(@Param('id') id: string, @Body() dto: UpdateCompanyDto, @CurrentUser() user: AuthUser) {
     return this.companies.update(id, dto, user);
+  }
+
+  @Patch(':id/logo')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  updateLogo(@Param('id') id: string, @Body() dto: UpdateCompanyLogoDto, @CurrentUser() user: AuthUser) {
+    return this.companies.update(id, { logoUrl: dto.logoUrl }, user);
   }
 
   @Patch(':id/activate')

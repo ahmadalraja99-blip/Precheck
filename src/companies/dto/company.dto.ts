@@ -1,4 +1,4 @@
-import { IsBoolean, IsEmail, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsEmail, IsOptional, IsString, IsUrl } from 'class-validator';
 
 export class CreateCompanyDto {
   @IsString()
@@ -14,6 +14,14 @@ export class CreateCompanyDto {
   @IsOptional()
   @IsString()
   phone?: string;
+
+  @IsOptional()
+  @IsUrl()
+  logoUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  logoPath?: string;
 }
 
 export class UpdateCompanyDto {
@@ -36,4 +44,17 @@ export class UpdateCompanyDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @IsOptional()
+  @IsUrl()
+  logoUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  logoPath?: string;
+}
+
+export class UpdateCompanyLogoDto {
+  @IsUrl()
+  logoUrl: string;
 }
