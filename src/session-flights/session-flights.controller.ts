@@ -50,13 +50,17 @@ export class SessionFlightsController {
     @Body() dto: UpdateSessionFlightStatusDto,
     @CurrentUser() user: AuthUser,
   ) {
-    return this.sessionFlights.updateStatus(id, dto.status, user);
+    return this.sessionFlights.updatePublicStatus(id, dto.status, user);
   }
 
   @Patch('session-flights/:id/cancel')
   @Roles(Role.MOVEMENT_SUPERVISOR, Role.ADMIN, Role.SUPER_ADMIN)
   cancel(@Param('id') id: string, @CurrentUser() user: AuthUser) {
-    return this.sessionFlights.updateStatus(id, DailySessionFlightStatus.CANCELLED, user);
+    return this.sessionFlights.updatePublicStatus(
+      id,
+      DailySessionFlightStatus.CANCELLED,
+      user,
+    );
   }
 
   @Post('session-flights/:id/accept-carry-over')

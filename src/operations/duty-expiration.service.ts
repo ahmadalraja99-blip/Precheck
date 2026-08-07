@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import {
   DailyCompanySessionStatus,
   DailySessionFlightStatus,
@@ -7,12 +7,18 @@ import {
   OperationalReportFormat,
   OperationalReportGenerationType,
   Prisma,
+  Role,
+  NotificationType,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { lockDailySessionFlightRows } from '../common/database/daily-session-flight-lock';
+import { AuditService } from '../audit/audit.service';
+import { NotificationsGateway, REALTIME_EVENTS } from '../notifications/notifications.gateway';
 
 @Injectable()
 export class DutyExpirationService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly audit: AuditService,
+    @Optional() private readonly realtime?: NotificationsGateway) {}
 
   async expireDueDuties(now = new Date()) {
     const duties = await this.prisma.dailyDuty.findMany({
@@ -24,43 +30,70 @@ export class DutyExpirationService {
   }
 
   async expireDuty(dutyId: string) {
-    const duty = await this.prisma.dailyDuty.findUnique({
-      where: { id: dutyId },
-      include: { dailyCompanySessions: { select: { id: true } } },
-    });
-    if (!duty || duty.status !== DailyDutyStatus.OPEN) return duty;
-    if (duty.expiresAt > new Date()) return duty;
-
-    await this.prisma.$transaction(async (tx) => {
-      await tx.dailyDuty.update({
-        where: { id: duty.id },
-        data: { status: DailyDutyStatus.EXPIRED, closedAt: duty.expiresAt },
-      });
-    });
-    await this.markCarryOver(duty.id, duty.expiresAt);
-    await this.generateDutySnapshots(duty.id, OperationalReportGenerationType.AUTOMATIC_DUTY_EXPIRATION);
-    return this.prisma.dailyDuty.findUnique({ where: { id: duty.id } });
+    const expired = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "DailyDuty" WHERE "id"=${dutyId} FOR UPDATE`;
+      const duty = await tx.dailyDuty.findUnique({ where: { id: dutyId } });
+      if (!duty || duty.status !== DailyDutyStatus.OPEN || duty.expiresAt > new Date()) return null;
+      await this.markCarryOverTx(tx, duty.id, duty.expiresAt, 'Daily duty reached its 24-hour expiration');
+      await tx.dailyDuty.update({ where: { id: duty.id }, data: { status: DailyDutyStatus.EXPIRED } });
+      await this.audit.record({ action: 'EXPIRE_DAILY_DUTY', entityType: 'DailyDuty', entityId: duty.id,
+        metadata: { expiresAt: duty.expiresAt.toISOString() } }, tx);
+      return duty;
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    if (!expired) return this.prisma.dailyDuty.findUnique({ where: { id: dutyId } });
+    await this.generateDutySnapshots(expired.id, OperationalReportGenerationType.AUTOMATIC_DUTY_EXPIRATION);
+    this.realtime?.emitScoped(REALTIME_EVENTS.DUTY_EXPIRED,
+      { resourceId: expired.id, dailyDutyId: expired.id, movementCategoryId: expired.movementCategoryId,
+        status: DailyDutyStatus.EXPIRED, updatedAt: new Date().toISOString() },
+      { dailyDutyId: expired.id, movementCategoryId: expired.movementCategoryId, admins: true });
+    return this.prisma.dailyDuty.findUnique({ where: { id: expired.id } });
   }
 
   async markCarryOver(dutyId: string, boundary: Date) {
-    await this.prisma.$transaction(async (tx) => {
-      await tx.dailySessionFlight.updateMany({
+    await this.prisma.$transaction(async (tx) => this.markCarryOverTx(tx, dutyId, boundary, 'Daily duty closed with unfinished flight work'));
+  }
+
+  private async markCarryOverTx(tx: Prisma.TransactionClient, dutyId: string, boundary: Date, reason: string) {
+      const candidates = await tx.dailySessionFlight.findMany({
         where: {
           dailyCompanySession: { dailyDutyId: dutyId },
-          status: { notIn: [DailySessionFlightStatus.CLOSED, DailySessionFlightStatus.CANCELLED] },
+          status: {
+            notIn: [
+              DailySessionFlightStatus.CLOSED,
+              DailySessionFlightStatus.CANCELLED,
+              DailySessionFlightStatus.CARRY_OVER,
+            ],
+          },
         },
-        data: {
-          isCarryOver: true,
-          status: DailySessionFlightStatus.CARRY_OVER,
-          handoverStatus: HandoverStatus.PENDING,
-          carriedFromDailyDutyId: dutyId,
-        },
+        select: { id: true },
       });
+      const candidateIds = candidates.map(({ id }) => id);
+      await lockDailySessionFlightRows(tx, candidateIds);
+      const currentFlights = await tx.dailySessionFlight.findMany({
+        where: {
+          id: { in: candidateIds },
+          dailyCompanySession: { dailyDutyId: dutyId },
+          status: {
+            notIn: [
+              DailySessionFlightStatus.CLOSED,
+              DailySessionFlightStatus.CANCELLED,
+              DailySessionFlightStatus.CARRY_OVER,
+            ],
+          },
+        },
+        select: { id: true, status: true },
+      });
+      for (const flight of currentFlights) {
+        await tx.dailySessionFlight.update({ where: { id: flight.id }, data: { isCarryOver: true,
+          handoverStatus: HandoverStatus.PENDING, carriedFromDailyDutyId: dutyId, carriedAt: boundary,
+          carryOverReason: reason, carryOverStatusSnapshot: flight.status } });
+        await this.audit.record({ action: 'MARK_DAILY_SESSION_FLIGHT_CARRY_OVER', entityType: 'DailySessionFlight',
+          entityId: flight.id, metadata: { sourceDutyId: dutyId, statusAtCarryOver: flight.status, carriedAt: boundary.toISOString() } }, tx);
+      }
       await tx.counterReservation.updateMany({
         where: {
-          dailyCompanySession: { dailyDutyId: dutyId },
+          dailySessionFlightId: { in: currentFlights.map(({ id }) => id) },
           status: { in: ['SCHEDULED', 'ACTIVE'] },
-          reservedTo: { gt: boundary },
         },
         data: { isCarryOver: true },
       });
@@ -77,7 +110,14 @@ export class DutyExpirationService {
         },
         data: { status: DailyCompanySessionStatus.CARRY_OVER },
       });
-    });
+      await tx.dailyCompanySession.updateMany({ where: { dailyDutyId: dutyId,
+        sessionFlights: { none: { status: { notIn: [DailySessionFlightStatus.CLOSED, DailySessionFlightStatus.CANCELLED] } } },
+        status: { in: [DailyCompanySessionStatus.SCHEDULED, DailyCompanySessionStatus.OPEN] } },
+        data: { status: DailyCompanySessionStatus.CLOSED, closedAt: boundary } });
+      if (currentFlights.length) await tx.notification.create({ data: { title: 'Carry-over handover available',
+        message: `${currentFlights.length} flight(s) require handover from an expired duty.`,
+        type: NotificationType.SESSION_CREATED, targetRole: Role.MOVEMENT_SUPERVISOR,
+        entityType: 'DailyDuty', entityId: dutyId } });
   }
 
   async generateDutySnapshots(dutyId: string, generationType: OperationalReportGenerationType) {
@@ -126,8 +166,7 @@ export class DutyExpirationService {
         sessionStatus: session.status,
         generatedAutomatically: true,
       };
-      await this.prisma.dailyCompanyReport.create({
-        data: {
+      try { await this.prisma.dailyCompanyReport.create({ data: {
           dailyCompanySessionId: session.id,
           companyId: session.companyId,
           movementCategoryId: session.movementCategoryId,
@@ -136,8 +175,9 @@ export class DutyExpirationService {
           format: OperationalReportFormat.PDF,
           generationType,
           metadata,
-        },
-      });
+        } }); } catch (error) {
+        if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2002') throw error;
+      }
     }
   }
 }

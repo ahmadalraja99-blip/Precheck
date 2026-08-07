@@ -1,9 +1,24 @@
 import { PrismaClient, PermissionCode, Role, CounterStatus } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+import { DEFINITIVE_AIRLINES } from './airlines';
+import { COMPANY_USER_PERMISSIONS } from '../src/roles-permissions/roles-permissions.service';
 
 const prisma = new PrismaClient();
 
 async function main() {
+  const production = process.env.NODE_ENV === 'production';
+  const configuredEmail = process.env.SEED_SUPER_ADMIN_EMAIL?.trim();
+  const configuredPassword = process.env.SEED_SUPER_ADMIN_PASSWORD;
+  const configuredName = process.env.SEED_SUPER_ADMIN_FULL_NAME?.trim();
+  if (
+    production &&
+    (!configuredEmail || !configuredPassword || !configuredName ||
+      configuredEmail === 'super.admin@example.com' || configuredPassword === 'ChangeMe123!')
+  ) {
+    throw new Error(
+      'Production bootstrap requires explicit non-example SEED_SUPER_ADMIN_EMAIL, SEED_SUPER_ADMIN_PASSWORD, and SEED_SUPER_ADMIN_FULL_NAME',
+    );
+  }
   for (const code of Object.values(PermissionCode)) {
     await prisma.permission.upsert({
       where: { code },
@@ -12,14 +27,14 @@ async function main() {
     });
   }
 
-  const password = process.env.SEED_SUPER_ADMIN_PASSWORD || 'ChangeMe123!';
+  const password = configuredPassword || 'ChangeMe123!';
   const superAdmin = await prisma.user.upsert({
-    where: { email: process.env.SEED_SUPER_ADMIN_EMAIL || 'super.admin@example.com' },
+    where: { email: configuredEmail || 'super.admin@example.com' },
     update: {},
     create: {
-      email: process.env.SEED_SUPER_ADMIN_EMAIL || 'super.admin@example.com',
+      email: configuredEmail || 'super.admin@example.com',
       passwordHash: await bcrypt.hash(password, 12),
-      fullName: process.env.SEED_SUPER_ADMIN_FULL_NAME || 'System Super Admin',
+      fullName: configuredName || 'System Super Admin',
       role: Role.SUPER_ADMIN,
     },
   });
@@ -47,54 +62,46 @@ async function main() {
     if (!existing) await prisma.checkItem.create({ data: { name, category, isRequired, order, description: name } });
   }
 
-  const company = await prisma.company.upsert({
-    where: { code: 'SYA' },
-    update: { logoUrl: 'https://example.com/logos/syrian-air.png' },
-    create: { name: 'Sample Airline', code: 'SYA', email: 'ops@example.com', phone: '+963000000000' },
+  for (const airline of DEFINITIVE_AIRLINES) {
+    await prisma.company.upsert({
+      where: { code: airline.code },
+      update: {
+        name: airline.name,
+        isActive: true,
+      },
+      create: {
+        ...airline,
+        isActive: true,
+      },
+    });
+  }
+
+  const companyUserPermissions = await prisma.permission.findMany({
+    where: { code: { in: [...COMPANY_USER_PERMISSIONS] } },
   });
 
-  const chamWings = await prisma.company.upsert({
-    where: { code: 'CWA' },
-    update: { name: 'Cham Wings', logoUrl: 'https://example.com/logos/cham-wings.png' },
-    create: {
-      name: 'Cham Wings',
-      code: 'CWA',
-      email: 'ops@chamwings.com',
-      logoUrl: 'https://example.com/logos/cham-wings.png',
-    },
-  });
-  const syrianAir = await prisma.company.upsert({
-    where: { code: 'SYR' },
-    update: { name: 'Syrian Air', logoUrl: 'https://example.com/logos/syrian-air.png' },
-    create: {
-      name: 'Syrian Air',
-      code: 'SYR',
-      email: 'ops@syrianair.com',
-      logoUrl: 'https://example.com/logos/syrian-air.png',
-    },
-  });
-
-  await prisma.user.upsert({
-    where: { email: 'company.user@example.com' },
-    update: {},
-    create: { email: 'company.user@example.com', passwordHash: await bcrypt.hash('Company123!', 12), fullName: 'Sample Company User', role: Role.COMPANY_USER, companyId: company.id },
-  });
-  await prisma.user.upsert({
-    where: { email: 'company.user2@example.com' },
-    update: {
-      passwordHash: await bcrypt.hash('Company123!', 12),
-      companyId: syrianAir.id,
+  if (production) {
+    console.log(`Production bootstrap completed for Super Admin ${superAdmin.email}`);
+    return;
+  }
+  await prisma.rolePermission.deleteMany({
+    where: {
       role: Role.COMPANY_USER,
-      isActive: true,
-    },
-    create: {
-      email: 'company.user2@example.com',
-      passwordHash: await bcrypt.hash('Company123!', 12),
-      fullName: 'Syrian Air Company User',
-      role: Role.COMPANY_USER,
-      companyId: syrianAir.id,
+      permissionId: { notIn: companyUserPermissions.map((permission) => permission.id) },
     },
   });
+  for (const permission of companyUserPermissions) {
+    await prisma.rolePermission.upsert({
+      where: {
+        role_permissionId: {
+          role: Role.COMPANY_USER,
+          permissionId: permission.id,
+        },
+      },
+      update: {},
+      create: { role: Role.COMPANY_USER, permissionId: permission.id },
+    });
+  }
   await prisma.user.upsert({
     where: { email: 'movement.supervisor@example.com' },
     update: {},
@@ -175,7 +182,9 @@ async function main() {
     });
   }
 
-  console.log(`Seed completed. Super admin: ${superAdmin.email}; airlines: ${chamWings.name}, ${syrianAir.name}`);
+  console.log(
+    `Seed completed. Super admin: ${superAdmin.email}; active airlines: ${DEFINITIVE_AIRLINES.length}`,
+  );
 }
 
 main()

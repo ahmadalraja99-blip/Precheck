@@ -3,6 +3,7 @@ import { CounterStatus, NotificationType, PrismaClient, Role } from '@prisma/cli
 import { AuditService } from '../audit/audit.service';
 import { AuthUser } from '../common/types/auth-user.type';
 import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationsGateway, REALTIME_EVENTS } from '../notifications/notifications.gateway';
 import { PrismaService } from '../prisma/prisma.service';
 
 type Tx = Omit<PrismaClient, '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'>;
@@ -22,11 +23,12 @@ export class CounterStatusService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly notifications: NotificationsService,
+    private readonly realtime: NotificationsGateway,
   ) {}
 
   async assertAvailable(counterIds: string[], tx: Tx = this.prisma) {
     const counters = await tx.counter.findMany({ where: { id: { in: counterIds } } });
-    const unavailable = counters.filter((counter) => counter.status !== CounterStatus.AVAILABLE);
+    const unavailable = counters.filter((counter) => !counter.isActive || counter.status !== CounterStatus.AVAILABLE);
     if (counters.length !== counterIds.length || unavailable.length) {
       throw new ConflictException('Only AVAILABLE counters can be assigned');
     }
@@ -45,6 +47,10 @@ export class CounterStatusService {
     }
 
     await tx.counter.updateMany({ where: { id: { in: uniqueCounterIds } }, data: { status } });
+    const history = counters.filter(({ status: previous }) => previous !== status).map((counter) => ({
+      counterId: counter.id, fromStatus: counter.status, toStatus: status, reason: note?.trim() || null, changedById: actor?.id,
+    }));
+    if (history.length) await tx.counterStatusHistory.createMany({ data: history });
     await this.audit.record({
       user: actor,
       action: 'CHANGE_COUNTER_STATUS',
@@ -52,11 +58,17 @@ export class CounterStatusService {
       result: 'SUCCESS',
       note: note ?? `Counters changed to ${status}`,
       metadata: { counterIds: uniqueCounterIds, status },
-    });
+    }, tx);
+  }
+
+  async publishCommitted(counterIds: string[], status: CounterStatus) {
+    this.realtime.emitScoped(REALTIME_EVENTS.COUNTER_STATUS_CHANGED, { resourceId: counterIds[0] ?? 'counter-batch',
+      status, updatedAt: new Date().toISOString(), display: { counterCount: counterIds.length } },
+    { role: Role.MOVEMENT_SUPERVISOR, admins: true });
     if (([CounterStatus.UNAVAILABLE, CounterStatus.AVAILABLE] as CounterStatus[]).includes(status)) {
       await this.notifications.create({
         title: status === CounterStatus.AVAILABLE ? 'Counter became available' : 'Counter became unavailable',
-        message: `${uniqueCounterIds.length} counter(s) changed to ${status}`,
+        message: `${new Set(counterIds).size} counter(s) changed to ${status}`,
         type: status === CounterStatus.AVAILABLE ? NotificationType.COUNTER_AVAILABLE : NotificationType.COUNTER_UNAVAILABLE,
         targetRole: Role.MOVEMENT_SUPERVISOR,
       });

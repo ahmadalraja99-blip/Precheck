@@ -1,0 +1,2 @@
+export const OPERATIONAL_REPORT_TEMPLATE_VERSION = '1.0';
+export const OPERATIONAL_REPORT_TIME_ZONE = 'Asia/Damascus';

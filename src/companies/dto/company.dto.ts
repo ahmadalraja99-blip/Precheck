@@ -1,10 +1,13 @@
-import { IsBoolean, IsEmail, IsOptional, IsString, IsUrl } from 'class-validator';
+import { IsBoolean, IsEmail, IsOptional, IsString, IsUrl, Matches } from 'class-validator';
 
 export class CreateCompanyDto {
   @IsString()
   name: string;
 
   @IsString()
+  @Matches(/^[A-Z0-9]{2}$/, {
+    message: 'Company code must contain exactly two uppercase letters or numbers',
+  })
   code: string;
 
   @IsOptional()
@@ -31,6 +34,9 @@ export class UpdateCompanyDto {
 
   @IsOptional()
   @IsString()
+  @Matches(/^[A-Z0-9]{2}$/, {
+    message: 'Company code must contain exactly two uppercase letters or numbers',
+  })
   code?: string;
 
   @IsOptional()

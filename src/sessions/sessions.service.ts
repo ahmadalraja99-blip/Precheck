@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { CounterReservationStatus, CounterStatus, NotificationType, Prisma, Role, SessionStatus } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
+import { lockCounterRows } from '../common/database/counter-lock';
 import { PaginationDto, paginate } from '../common/dto/pagination.dto';
 import { AuthUser } from '../common/types/auth-user.type';
 import { safeUserSelect } from '../common/utils/sanitize-user';
@@ -42,12 +43,20 @@ export class SessionsService {
     const start = new Date(dto.plannedStartAt);
     const end = new Date(dto.plannedEndAt);
     if (start >= end) throw new BadRequestException('plannedStartAt must be before plannedEndAt');
+    const counterIds = [...new Set(dto.counterIds)];
+    if (counterIds.length !== dto.counterIds.length) {
+      throw new ConflictException('Only AVAILABLE counters can be assigned');
+    }
 
     const session = await this.prisma.$transaction(async (tx) => {
-      await this.counterStatus.assertAvailable(dto.counterIds, tx);
+      const lockedCounters = await lockCounterRows(tx, counterIds);
+      if (lockedCounters.length !== counterIds.length) {
+        throw new NotFoundException('One or more counters were not found');
+      }
+      await this.counterStatus.assertAvailable(counterIds, tx);
       const overlapping = await tx.sessionCounter.findFirst({
         where: {
-          counterId: { in: dto.counterIds },
+          counterId: { in: counterIds },
           session: {
             status: { in: activeStatuses },
             plannedStartAt: { lt: end },
@@ -58,7 +67,7 @@ export class SessionsService {
       if (overlapping) throw new ConflictException('Selected counter has an overlapping active session');
       const operationalReservation = await tx.counterReservation.findFirst({
         where: {
-          counterId: { in: dto.counterIds },
+          counterId: { in: counterIds },
           status: { in: [CounterReservationStatus.SCHEDULED, CounterReservationStatus.ACTIVE] },
           reservedFrom: { lt: end },
           reservedTo: { gt: start },
@@ -74,11 +83,11 @@ export class SessionsService {
           plannedStartAt: start,
           plannedEndAt: end,
           notes: dto.notes ?? dto.note,
-          counters: { create: dto.counterIds.map((counterId) => ({ counterId })) },
+          counters: { create: counterIds.map((counterId) => ({ counterId })) },
         },
         include: { counters: { include: { counter: true } }, company: true },
       });
-      await this.counterStatus.transitionMany(dto.counterIds, CounterStatus.RESERVED, user, 'Session created', tx);
+      await this.counterStatus.transitionMany(counterIds, CounterStatus.RESERVED, user, 'Session created', tx);
       return created;
     });
     await this.audit.record({ user, action: 'CREATE_SESSION', entityType: 'Session', entityId: session.id });

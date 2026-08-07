@@ -41,6 +41,7 @@ export class MailerService {
   async send(input: {
     to: string[];
     cc?: string[];
+    bcc?: string[];
     subject: string;
     body: string;
     attachments?: { filename: string; path: string }[];
@@ -53,7 +54,7 @@ export class MailerService {
         cc: input.cc?.join(','),
         subject: input.subject,
         bodyPreview: input.body.slice(0, 250),
-        attachments: input.attachments as Prisma.InputJsonValue,
+        attachments: input.attachments?.map(({ filename }) => ({ filename })) as Prisma.InputJsonValue,
         relatedEntityType: input.relatedEntityType,
         relatedEntityId: input.relatedEntityId,
       },
@@ -64,6 +65,7 @@ export class MailerService {
         from: smtp.from,
         to: input.to,
         cc: input.cc,
+        bcc: input.bcc,
         subject: input.subject,
         text: input.body,
         attachments: input.attachments,

@@ -1,4 +1,4 @@
-import { ValidationPipe, VersioningType } from '@nestjs/common';
+import { RequestMethod, ValidationPipe, VersioningType } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import helmet from 'helmet';
@@ -11,8 +11,19 @@ async function bootstrap() {
   const config = app.get(ConfigService);
 
   app.use(helmet());
-  app.enableCors();
-  app.setGlobalPrefix(config.get<string>('API_PREFIX', 'api/v1'));
+  const configuredOrigins = config.get<string>('FRONTEND_ORIGIN');
+  if (!configuredOrigins && config.get<string>('NODE_ENV') === 'production') {
+    throw new Error('FRONTEND_ORIGIN is required in production');
+  }
+  const allowedOrigins = (configuredOrigins ?? 'http://localhost:3001')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+  app.enableCors({ origin: allowedOrigins, credentials: true });
+  app.setGlobalPrefix(config.get<string>('API_PREFIX', 'api/v1'), {
+    exclude: [{ path: 'health', method: RequestMethod.GET }],
+  });
+  app.enableShutdownHooks();
   app.enableVersioning({ type: VersioningType.URI });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true, forbidNonWhitelisted: true }));
   app.useGlobalFilters(new GlobalExceptionFilter());

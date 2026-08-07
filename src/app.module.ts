@@ -28,12 +28,14 @@ import { FlightsModule } from './flights/flights.module';
 import { SessionFlightsModule } from './session-flights/session-flights.module';
 import { CounterReservationsModule } from './counter-reservations/counter-reservations.module';
 import { OperationalReportsModule } from './operational-reports/operational-reports.module';
+import { HealthModule } from './health/health.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     ScheduleModule.forRoot(),
     PrismaModule,
+    HealthModule,
     OperationsModule,
     AuditModule,
     NotificationsModule,

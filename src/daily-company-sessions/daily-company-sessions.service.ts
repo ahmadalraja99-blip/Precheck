@@ -1,5 +1,5 @@
-import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { DailyCompanySessionStatus, Prisma, Role } from '@prisma/client';
+import { ConflictException, ForbiddenException, Injectable, NotFoundException, Optional } from '@nestjs/common';
+import { DailyCompanySessionStatus, DailySessionFlightStatus, Prisma, Role } from '@prisma/client';
 import { paginate } from '../common/dto/pagination.dto';
 import { AuthUser } from '../common/types/auth-user.type';
 import { safeUserSelect } from '../common/utils/sanitize-user';
@@ -9,6 +9,8 @@ import { CreateDailyCompanySessionDto } from './dto/create-daily-company-session
 import { DailyCompanySessionQueryDto } from './dto/daily-company-session-query.dto';
 import { GetOrCreateDailyCompanySessionDto } from './dto/get-or-create-daily-company-session.dto';
 import { UpdateDailyCompanySessionDto } from './dto/update-daily-company-session.dto';
+import { AuditService } from '../audit/audit.service';
+import { NotificationsGateway, REALTIME_EVENTS } from '../notifications/notifications.gateway';
 
 const sessionInclude = {
   company: true,
@@ -22,6 +24,8 @@ export class DailyCompanySessionsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly access: OperationAccessService,
+    private readonly audit: AuditService,
+    @Optional() private readonly realtime?: NotificationsGateway,
   ) {}
 
   async create(dto: CreateDailyCompanySessionDto, user: AuthUser) {
@@ -29,7 +33,7 @@ export class DailyCompanySessionsService {
     const company = await this.prisma.company.findUnique({ where: { id: dto.companyId } });
     if (!company?.isActive) throw new NotFoundException('Active company not found');
     try {
-      return await this.prisma.dailyCompanySession.create({
+      const created = await this.prisma.dailyCompanySession.create({
         data: {
           dailyDutyId: duty.id,
           movementCategoryId: duty.movementCategoryId,
@@ -41,6 +45,11 @@ export class DailyCompanySessionsService {
         },
         include: sessionInclude,
       });
+      await this.audit.record({ user, action: 'CREATE_DAILY_COMPANY_SESSION', entityType: 'DailyCompanySession',
+        entityId: created.id, metadata: { dailyDutyId: created.dailyDutyId, companyId: created.companyId,
+          movementCategoryId: created.movementCategoryId, plannedFlightsCount: created.plannedFlightsCount } });
+      this.publish(REALTIME_EVENTS.COMPANY_SESSION_CREATED, created);
+      return created;
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
         throw new ConflictException('A daily company session already exists for this company and duty');
@@ -81,6 +90,10 @@ export class DailyCompanySessionsService {
         },
         include: sessionInclude,
       });
+      await this.audit.record({ user, action: 'CREATE_DAILY_COMPANY_SESSION', entityType: 'DailyCompanySession',
+        entityId: session.id, metadata: { dailyDutyId: session.dailyDutyId, companyId: session.companyId,
+          movementCategoryId: session.movementCategoryId, plannedFlightsCount: session.plannedFlightsCount } });
+      this.publish(REALTIME_EVENTS.COMPANY_SESSION_CREATED, session);
       return { created: true, session };
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
@@ -140,7 +153,14 @@ export class DailyCompanySessionsService {
             flight: true,
             createdBy: { select: safeUserSelect },
             counterReservations: { include: { counter: true } },
-            flightReports: true,
+            flightReports: {
+              select: {
+                id: true, dailySessionFlightId: true, companyId: true, movementCategoryId: true,
+                generatedById: true, format: true, generationType: true, status: true,
+                errorMessage: true, mimeType: true, fileSize: true, checksum: true,
+                generatedAt: true, templateVersion: true, metadata: true, createdAt: true, updatedAt: true,
+              },
+            },
           },
         },
         dailyCompanyReports: true,
@@ -160,13 +180,26 @@ export class DailyCompanySessionsService {
 
   async update(id: string, dto: UpdateDailyCompanySessionDto, user: AuthUser) {
     await this.access.assertCanModifySession(id, user);
-    return this.prisma.dailyCompanySession.update({ where: { id }, data: dto, include: sessionInclude });
+    const updated = await this.prisma.dailyCompanySession.update({ where: { id }, data: dto, include: sessionInclude });
+    this.publish(REALTIME_EVENTS.COMPANY_SESSION_UPDATED, updated);
+    return updated;
   }
 
   async changeStatus(id: string, status: DailyCompanySessionStatus, user: AuthUser) {
     await this.access.assertCanModifySession(id, user);
-    return this.prisma.dailyCompanySession.update({
-      where: { id },
+    const current = await this.prisma.dailyCompanySession.findUnique({ where: { id }, include: { sessionFlights: true } });
+    if (!current) throw new NotFoundException('Daily company session not found');
+    if (current.status === DailyCompanySessionStatus.CLOSED) {
+      if (status === DailyCompanySessionStatus.CLOSED) return this.prisma.dailyCompanySession.findUnique({ where: { id }, include: sessionInclude });
+      throw new ConflictException('A closed company session cannot be reopened');
+    }
+    if (status === DailyCompanySessionStatus.CLOSED) {
+      const blockers = current.sessionFlights.filter((flight) =>
+        flight.status !== DailySessionFlightStatus.CLOSED && flight.status !== DailySessionFlightStatus.CANCELLED);
+      if (blockers.length) throw new ConflictException({ message: 'Company session has incomplete flights',
+        blockers: blockers.map((flight) => ({ flightId: flight.id, status: flight.status, handoverStatus: flight.handoverStatus })) });
+    }
+    const changed = await this.prisma.dailyCompanySession.updateMany({ where: { id, status: current.status },
       data: {
         status,
         openedAt: status === DailyCompanySessionStatus.OPEN ? new Date() : undefined,
@@ -175,7 +208,21 @@ export class DailyCompanySessionsService {
             ? new Date()
             : undefined,
       },
-      include: sessionInclude,
     });
+    if (changed.count !== 1) throw new ConflictException('Company session changed concurrently');
+    await this.audit.record({ user, action: status === DailyCompanySessionStatus.CLOSED ? 'CLOSE_DAILY_COMPANY_SESSION' : 'CHANGE_DAILY_COMPANY_SESSION_STATUS',
+      entityType: 'DailyCompanySession', entityId: id, metadata: { previousStatus: current.status, nextStatus: status } });
+    const updated = await this.prisma.dailyCompanySession.findUniqueOrThrow({ where: { id }, include: sessionInclude });
+    this.publish(status === DailyCompanySessionStatus.CLOSED ? REALTIME_EVENTS.COMPANY_SESSION_CLOSED : REALTIME_EVENTS.COMPANY_SESSION_UPDATED, updated);
+    return updated;
+  }
+
+  private publish(event: typeof REALTIME_EVENTS.COMPANY_SESSION_CREATED | typeof REALTIME_EVENTS.COMPANY_SESSION_UPDATED |
+    typeof REALTIME_EVENTS.COMPANY_SESSION_CLOSED, session: { id: string; companyId: string; dailyDutyId: string;
+      movementCategoryId: string; status: DailyCompanySessionStatus; updatedAt: Date }) {
+    this.realtime?.emitScoped(event, { resourceId: session.id, dailyCompanySessionId: session.id,
+      companyId: session.companyId, dailyDutyId: session.dailyDutyId, movementCategoryId: session.movementCategoryId,
+      status: session.status, updatedAt: session.updatedAt.toISOString() },
+    { companyId: session.companyId, dailyDutyId: session.dailyDutyId, movementCategoryId: session.movementCategoryId, admins: true });
   }
 }

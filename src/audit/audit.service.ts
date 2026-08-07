@@ -8,19 +8,22 @@ import { PaginationDto, paginate } from '../common/dto/pagination.dto';
 export class AuditService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async record(input: {
-    user?: Partial<AuthUser> | null;
-    permissionUsed?: string;
-    action: string;
-    entityType: string;
-    entityId?: string;
-    result?: string;
-    note?: string;
-    ipAddress?: string;
-    userAgent?: string;
-    metadata?: Prisma.InputJsonValue;
-  }) {
-    return this.prisma.auditLog.create({
+  async record(
+    input: {
+      user?: Partial<AuthUser> | null;
+      permissionUsed?: string;
+      action: string;
+      entityType: string;
+      entityId?: string;
+      result?: string;
+      note?: string;
+      ipAddress?: string;
+      userAgent?: string;
+      metadata?: Prisma.InputJsonValue;
+    },
+    client: Pick<Prisma.TransactionClient, 'auditLog'> = this.prisma,
+  ) {
+    return client.auditLog.create({
       data: {
         userId: input.user?.id,
         fullName: input.user?.fullName,

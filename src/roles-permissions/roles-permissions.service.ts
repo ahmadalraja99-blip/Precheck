@@ -4,17 +4,33 @@ import { PrismaService } from '../prisma/prisma.service';
 
 export const ALL_PERMISSIONS = Object.values(PermissionCode);
 
+export const COMPANY_USER_PERMISSIONS: readonly PermissionCode[] = [
+  PermissionCode.CAN_VIEW_DASHBOARD,
+  PermissionCode.CAN_VIEW_COUNTERS,
+  PermissionCode.CAN_VIEW_DEVICES,
+  PermissionCode.CAN_VIEW_SESSIONS,
+  PermissionCode.CAN_VIEW_REPORTS,
+  PermissionCode.CAN_EXPORT_REPORTS,
+];
+
 @Injectable()
 export class RolesPermissionsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async getUserPermissionCodes(userId: string, role: Role): Promise<PermissionCode[]> {
     if (role === Role.SUPER_ADMIN) return ALL_PERMISSIONS;
-    const rows = await this.prisma.userPermission.findMany({
+    const roleRows = await this.prisma.rolePermission.findMany({
+      where: { role },
+      include: { permission: true },
+    });
+    if (role === Role.COMPANY_USER) {
+      return roleRows.map((row) => row.permission.code);
+    }
+    const userRows = await this.prisma.userPermission.findMany({
       where: { userId },
       include: { permission: true },
     });
-    return rows.map((row) => row.permission.code);
+    return [...new Set([...roleRows, ...userRows].map((row) => row.permission.code))];
   }
 
   async setAdminPermissions(userId: string, codes: PermissionCode[]) {

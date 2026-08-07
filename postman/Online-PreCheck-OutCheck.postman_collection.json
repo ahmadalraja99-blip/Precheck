@@ -123,7 +123,7 @@
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Cham Wings\",\n  \"code\": \"CWA\",\n  \"email\": \"ops@cwa.example\",\n  \"phone\": \"+963000000001\"\n}" },
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Syrian Airlines\",\n  \"code\": \"RB\"\n}" },
             "url": "{{baseUrl}}/companies"
           }
         },

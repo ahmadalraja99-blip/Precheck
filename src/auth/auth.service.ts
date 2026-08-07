@@ -1,6 +1,6 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { JwtService } from '@nestjs/jwt';
+import { JwtService, type JwtSignOptions } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { sanitizeUser } from '../common/utils/sanitize-user';
 import { PrismaService } from '../prisma/prisma.service';
@@ -23,19 +23,25 @@ export class AuthService {
     const payload = { sub: userId, email };
     return {
       accessToken: await this.jwt.signAsync(payload, {
-        secret: this.config.get<string>('JWT_ACCESS_SECRET'),
-        expiresIn: this.config.get<string>('JWT_ACCESS_EXPIRES_IN', '15m'),
+        secret: this.config.getOrThrow<string>('JWT_ACCESS_SECRET'),
+        expiresIn: this.config.get<string>(
+          'JWT_ACCESS_EXPIRES_IN',
+          '15m',
+        ) as JwtSignOptions['expiresIn'],
       }),
       refreshToken: await this.jwt.signAsync(payload, {
-        secret: this.config.get<string>('JWT_REFRESH_SECRET'),
-        expiresIn: this.config.get<string>('JWT_REFRESH_EXPIRES_IN', '7d'),
+        secret: this.config.getOrThrow<string>('JWT_REFRESH_SECRET'),
+        expiresIn: this.config.get<string>(
+          'JWT_REFRESH_EXPIRES_IN',
+          '7d',
+        ) as JwtSignOptions['expiresIn'],
       }),
     };
   }
 
   async login(dto: LoginDto) {
-    const user = await this.prisma.user.findUnique({ where: { email: dto.email.toLowerCase() } });
-    if (!user || !user.isActive) throw new UnauthorizedException('Invalid credentials');
+    const user = await this.prisma.user.findUnique({ where: { email: dto.email.toLowerCase() }, include: { company: true } });
+    if (!user || !user.isActive || (user.role === Role.COMPANY_USER && !user.company?.isActive)) throw new UnauthorizedException('Invalid credentials');
     const valid = await bcrypt.compare(dto.password, user.passwordHash);
     if (!valid) throw new UnauthorizedException('Invalid credentials');
     const tokens = await this.sign(user.id, user.email);
@@ -50,8 +56,8 @@ export class AuthService {
     const payload = await this.jwt.verifyAsync<{ sub: string; email: string }>(dto.refreshToken, {
       secret: this.config.get<string>('JWT_REFRESH_SECRET'),
     });
-    const user = await this.prisma.user.findUnique({ where: { id: payload.sub } });
-    if (!user?.refreshTokenHash || !user.isActive) throw new UnauthorizedException('Invalid refresh token');
+    const user = await this.prisma.user.findUnique({ where: { id: payload.sub }, include: { company: true } });
+    if (!user?.refreshTokenHash || !user.isActive || (user.role === Role.COMPANY_USER && !user.company?.isActive)) throw new UnauthorizedException('Invalid refresh token');
     const valid = await bcrypt.compare(dto.refreshToken, user.refreshTokenHash);
     if (!valid) throw new UnauthorizedException('Invalid refresh token');
     const tokens = await this.sign(user.id, user.email);
@@ -70,7 +76,7 @@ export class AuthService {
         },
       },
     });
-    if (!user) throw new UnauthorizedException('User not found');
+    if (!user || !user.isActive || (user.role === Role.COMPANY_USER && !user.company?.isActive)) throw new UnauthorizedException('Inactive or missing user');
     const permissions = await this.rbac.getUserPermissionCodes(user.id, user.role);
     const safe = sanitizeUser(user);
     if (user.role !== Role.MOVEMENT_SUPERVISOR) return { ...safe, permissions };

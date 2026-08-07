@@ -1,6 +1,12 @@
 node_modules
 dist
 .env
+.env.production
+.env.production.local
+deploy/fonts/*.ttf
+deploy/fonts/*.otf
+deploy/nginx/certs/*
+!deploy/nginx/certs/.gitkeep
 storage/*
 !storage/.gitkeep
 coverage

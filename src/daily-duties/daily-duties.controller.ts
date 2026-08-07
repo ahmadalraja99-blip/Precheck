@@ -22,7 +22,7 @@ export class DailyDutiesController {
   }
 
   @Get('my/active')
-  @Roles(Role.MOVEMENT_SUPERVISOR, Role.ADMIN, Role.SUPER_ADMIN)
+  @Roles(Role.COMPANY_USER, Role.MOVEMENT_SUPERVISOR, Role.ADMIN, Role.SUPER_ADMIN)
   active(@CurrentUser() user: AuthUser) {
     return this.duties.active(user);
   }
@@ -33,14 +33,18 @@ export class DailyDutiesController {
     return this.duties.carryOver(user);
   }
 
+  @Get('status')
+  @Roles(Role.COMPANY_USER, Role.MOVEMENT_SUPERVISOR, Role.ADMIN, Role.SUPER_ADMIN)
+  status(@CurrentUser() user: AuthUser) { return this.duties.status(user); }
+
   @Get()
-  @Roles(Role.MOVEMENT_SUPERVISOR, Role.ADMIN, Role.SUPER_ADMIN)
+  @Roles(Role.COMPANY_USER, Role.MOVEMENT_SUPERVISOR, Role.ADMIN, Role.SUPER_ADMIN)
   list(@Query() query: DailyDutyQueryDto, @CurrentUser() user: AuthUser) {
     return this.duties.list(query, user);
   }
 
   @Get(':id')
-  @Roles(Role.MOVEMENT_SUPERVISOR, Role.ADMIN, Role.SUPER_ADMIN)
+  @Roles(Role.COMPANY_USER, Role.MOVEMENT_SUPERVISOR, Role.ADMIN, Role.SUPER_ADMIN)
   find(@Param('id') id: string, @CurrentUser() user: AuthUser) {
     return this.duties.find(id, user);
   }

@@ -23,14 +23,14 @@ export class DevicesController {
   }
 
   @Get()
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @Roles(Role.MOVEMENT_SUPERVISOR, Role.SUPER_ADMIN, Role.ADMIN)
   @Permissions(PermissionCode.CAN_VIEW_DEVICES)
-  list(@Query() query: PaginationDto & { counterId?: string; status?: DeviceStatus }) {
+  list(@Query() query: PaginationDto & { counterId?: string; status?: DeviceStatus; type?: string; isActive?: boolean }) {
     return this.devices.list(query);
   }
 
   @Get(':id')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @Roles(Role.MOVEMENT_SUPERVISOR, Role.SUPER_ADMIN, Role.ADMIN)
   @Permissions(PermissionCode.CAN_VIEW_DEVICES)
   find(@Param('id') id: string) {
     return this.devices.find(id);

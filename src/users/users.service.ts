@@ -19,6 +19,13 @@ export class UsersService {
 
   private validateCompanyRule(role: Role, companyId?: string | null) {
     if (role === Role.COMPANY_USER && !companyId) throw new BadRequestException('COMPANY_USER must belong to a company');
+    if (role !== Role.COMPANY_USER && companyId) throw new BadRequestException('Only COMPANY_USER may belong to a company');
+  }
+
+  private async protectLastSuperAdmin(existing: { id: string; role: Role; isActive: boolean }, nextRole: Role, nextActive: boolean) {
+    if (existing.role !== Role.SUPER_ADMIN || !existing.isActive || (nextRole === Role.SUPER_ADMIN && nextActive)) return;
+    const remaining = await this.prisma.user.count({ where: { role: Role.SUPER_ADMIN, isActive: true, id: { not: existing.id } } });
+    if (!remaining) throw new ConflictException('The last active Super Admin cannot be deactivated or demoted');
   }
 
   async create(dto: CreateUserDto, actor: AuthUser) {
@@ -61,7 +68,11 @@ export class UsersService {
   async update(id: string, dto: UpdateUserDto, actor: AuthUser) {
     const existing = await this.prisma.user.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('User not found');
-    this.validateCompanyRule(dto.role ?? existing.role, dto.companyId ?? existing.companyId);
+    const nextRole = dto.role ?? existing.role;
+    const nextActive = dto.isActive ?? existing.isActive;
+    const nextCompanyId = dto.companyId !== undefined ? dto.companyId : existing.companyId;
+    this.validateCompanyRule(nextRole, nextCompanyId);
+    await this.protectLastSuperAdmin(existing, nextRole, nextActive);
     const user = await this.prisma.user.update({
       where: { id },
       data: {
@@ -73,7 +84,9 @@ export class UsersService {
         passwordHash: dto.password ? await bcrypt.hash(dto.password, 12) : undefined,
       },
     });
-    await this.audit.record({ user: actor, action: 'UPDATE_USER', entityType: 'User', entityId: id });
+    await this.audit.record({ user: actor, action: 'UPDATE_USER', entityType: 'User', entityId: id,
+      metadata: { previousRole: existing.role, role: user.role, previousCompanyId: existing.companyId,
+        companyId: user.companyId, previousIsActive: existing.isActive, isActive: user.isActive } });
     return sanitizeUser(user);
   }
 

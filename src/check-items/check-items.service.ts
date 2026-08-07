@@ -19,7 +19,9 @@ export class CheckItemsService {
 
   async create(dto: CreateCheckItemDto, user: AuthUser) {
     const item = await this.prisma.checkItem.create({ data: dto });
-    await this.audit.record({ user, action: 'CREATE_CHECK_ITEM', entityType: 'CheckItem', entityId: item.id });
+    await this.audit.record({ user, action: 'CREATE_CHECK_ITEM', entityType: 'CheckItem', entityId: item.id,
+      metadata: { category: item.category, order: item.order, isRequired: item.isRequired,
+        allowsNotApplicable: item.allowsNotApplicable, isActive: item.isActive } });
     return item;
   }
 
@@ -44,9 +46,19 @@ export class CheckItemsService {
   }
 
   async update(id: string, dto: UpdateCheckItemDto, user: AuthUser) {
-    await this.find(id);
-    const item = await this.prisma.checkItem.update({ where: { id }, data: dto });
-    await this.audit.record({ user, action: 'UPDATE_CHECK_ITEM', entityType: 'CheckItem', entityId: id });
-    return item;
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "CheckItem" WHERE "id"=${id} FOR UPDATE`;
+      const existing = await tx.checkItem.findUnique({ where: { id } });
+      if (!existing) throw new NotFoundException('Check item not found');
+      const item = await tx.checkItem.update({ where: { id }, data: dto });
+      const action = dto.isActive === undefined ? 'UPDATE_CHECK_ITEM' : dto.isActive ? 'ACTIVATE_CHECK_ITEM' : 'DEACTIVATE_CHECK_ITEM';
+      await this.audit.record({ user, action, entityType: 'CheckItem', entityId: id,
+        metadata: { previousCategory: existing.category, category: item.category, previousOrder: existing.order,
+          order: item.order, previousRequired: existing.isRequired, isRequired: item.isRequired,
+          previousAllowsNotApplicable: existing.allowsNotApplicable, allowsNotApplicable: item.allowsNotApplicable,
+          previousIsActive: existing.isActive, isActive: item.isActive } }, tx);
+      return item;
+    });
   }
+
 }

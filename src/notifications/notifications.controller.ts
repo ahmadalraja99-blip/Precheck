@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Patch, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, ParseUUIDPipe, Patch, Query, UseGuards } from '@nestjs/common';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { PaginationDto } from '../common/dto/pagination.dto';
@@ -16,7 +16,7 @@ export class NotificationsController {
   }
 
   @Patch(':id/read')
-  read(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+  read(@Param('id', new ParseUUIDPipe()) id: string, @CurrentUser() user: AuthUser) {
     return this.notifications.markRead(id, user);
   }
 

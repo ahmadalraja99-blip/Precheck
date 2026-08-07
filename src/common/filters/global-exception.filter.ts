@@ -10,9 +10,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     const message =
       typeof exceptionResponse === 'object' && exceptionResponse && 'message' in exceptionResponse
         ? (exceptionResponse as { message: unknown }).message
-        : exception instanceof Error
-          ? exception.message
-          : 'Unexpected server error';
+        : 'Unexpected server error';
     const details =
       typeof exceptionResponse === 'object' && exceptionResponse
         ? Object.fromEntries(
