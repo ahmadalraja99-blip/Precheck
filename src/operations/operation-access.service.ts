@@ -16,9 +16,7 @@ export class OperationAccessService {
     await this.expiration.expireDueDuties();
     const where = user.role === Role.MOVEMENT_SUPERVISOR
       ? { movementSupervisorId: user.id }
-      : user.role === Role.COMPANY_USER
-        ? { dailyCompanySessions: { some: { companyId: user.companyId ?? '__unlinked__' } } }
-        : {};
+      : {};
     return this.prisma.dailyDuty.findFirst({
       where: { ...where, status: DailyDutyStatus.OPEN, expiresAt: { gt: new Date() } },
       include: { movementCategory: true, movementSupervisor: { select: safeUserSelect } },

@@ -24,6 +24,7 @@
     "test:outcheck-failure-workflow": "node -r ts-node/register/transpile-only test/outcheck-failure-workflow.test.ts",
     "test:daily-duty-lifecycle": "node -r ts-node/register/transpile-only test/daily-duty-lifecycle.test.ts",
     "test:rbac": "node -r ts-node/register/transpile-only test/rbac.test.ts",
+    "test:cancelled-recreation": "node -r ts-node/register/transpile-only test/cancelled-recreation.test.ts",
     "test:configuration-management": "node -r ts-node/register/transpile-only test/configuration-management.test.ts",
     "test:realtime": "node -r ts-node/register/transpile-only test/realtime.test.ts",
     "test:e2e-final": "node -r ts-node/register/transpile-only test/e2e-final.test.ts"
@@ -42,7 +43,7 @@
     "bcrypt": "6.0.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",
-    "exceljs": "^4.4.0",
+    "exceljs": "^3.4.0",
     "helmet": "^7.2.0",
     "nodemailer": "9.0.5",
     "passport": "^0.7.0",

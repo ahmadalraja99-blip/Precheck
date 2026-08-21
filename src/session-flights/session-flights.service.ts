@@ -107,7 +107,11 @@ export class SessionFlightsService {
           throw new BadRequestException('Flight company must match daily company session');
         }
         const existing = await tx.dailySessionFlight.findFirst({
-          where: { dailyCompanySessionId: sessionId, flightId: flight.id },
+          where: {
+            dailyCompanySessionId: sessionId,
+            flightId: flight.id,
+            status: { not: DailySessionFlightStatus.CANCELLED },
+          },
         });
         if (existing) throw new ConflictException(duplicateAttachmentMessage);
         const carryOver = checkInEndsAt > session.dailyDuty.expiresAt;

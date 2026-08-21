@@ -11,7 +11,7 @@ export class GetOrCreateDailyCompanySessionDto {
   date: string;
 
   @IsInt()
-  @Min(0)
+  @Min(1)
   plannedFlightsCount: number;
 
   @IsOptional()

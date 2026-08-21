@@ -39,13 +39,25 @@ assert.equal(
 
 const schema = readFileSync(join(process.cwd(), 'prisma', 'schema.prisma'), 'utf8');
 for (const constraint of [
-  '@@unique([dailyCompanySessionId, flightId])',
   '@@unique([outCheckId, attemptNumber])',
   '@@unique([dailySessionFlightId, format, generationType, templateVersion])',
   '@@unique([dailySessionFlightId, generationType, emailPurpose, templateVersion, deliveryNumber])',
 ]) {
   assert.match(schema, new RegExp(constraint.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 }
+const cancelledHistoryMigration = readFileSync(
+  join(
+    process.cwd(),
+    'prisma',
+    'migrations',
+    '20260820000000_preserve_cancelled_operation_history',
+    'migration.sql',
+  ),
+  'utf8',
+);
+assert.match(cancelledHistoryMigration, /DailyCompanySession_active_dailyDutyId_companyId_key/);
+assert.match(cancelledHistoryMigration, /DailySessionFlight_active_sessionId_flightId_key/);
+assert.match(cancelledHistoryMigration, /WHERE "status" <> 'CANCELLED'/);
 
 const main = readFileSync(join(process.cwd(), 'src', 'main.ts'), 'utf8');
 assert.match(main, /enableShutdownHooks\(\)/);

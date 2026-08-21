@@ -1,4 +1,4 @@
-import { ConflictException, ForbiddenException, Injectable, NotFoundException, Optional } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { DailyCompanySessionStatus, DailySessionFlightStatus, Prisma, Role } from '@prisma/client';
 import { paginate } from '../common/dto/pagination.dto';
 import { AuthUser } from '../common/types/auth-user.type';
@@ -29,6 +29,9 @@ export class DailyCompanySessionsService {
   ) {}
 
   async create(dto: CreateDailyCompanySessionDto, user: AuthUser) {
+    this.assertCanCreateSession(user);
+    this.assertPlannedFlightsCount(dto.plannedFlightsCount);
+    this.access.assertCompanyScope(dto.companyId, user);
     const duty = await this.access.assertActiveDuty(dto.dailyDutyId, user);
     const company = await this.prisma.company.findUnique({ where: { id: dto.companyId } });
     if (!company?.isActive) throw new NotFoundException('Active company not found');
@@ -59,18 +62,20 @@ export class DailyCompanySessionsService {
   }
 
   async getOrCreate(dto: GetOrCreateDailyCompanySessionDto, user: AuthUser) {
+    this.assertCanCreateSession(user);
+    this.assertPlannedFlightsCount(dto.plannedFlightsCount);
+    this.access.assertCompanyScope(dto.companyId, user);
     const duty = await this.access.assertActiveDuty(dto.dailyDutyId, user);
     const company = await this.prisma.company.findUnique({ where: { id: dto.companyId } });
     if (!company?.isActive) throw new NotFoundException('Active company not found');
 
     const where = {
-      dailyDutyId_companyId: {
-        dailyDutyId: duty.id,
-        companyId: dto.companyId,
-      },
-    } satisfies Prisma.DailyCompanySessionWhereUniqueInput;
+      dailyDutyId: duty.id,
+      companyId: dto.companyId,
+      status: { not: DailyCompanySessionStatus.CANCELLED },
+    } satisfies Prisma.DailyCompanySessionWhereInput;
 
-    const existing = await this.prisma.dailyCompanySession.findUnique({
+    const existing = await this.prisma.dailyCompanySession.findFirst({
       where,
       include: sessionInclude,
     });
@@ -97,7 +102,7 @@ export class DailyCompanySessionsService {
       return { created: true, session };
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        const session = await this.prisma.dailyCompanySession.findUnique({
+        const session = await this.prisma.dailyCompanySession.findFirst({
           where,
           include: sessionInclude,
         });
@@ -179,6 +184,7 @@ export class DailyCompanySessionsService {
   }
 
   async update(id: string, dto: UpdateDailyCompanySessionDto, user: AuthUser) {
+    if (dto.plannedFlightsCount !== undefined) this.assertPlannedFlightsCount(dto.plannedFlightsCount);
     await this.access.assertCanModifySession(id, user);
     const updated = await this.prisma.dailyCompanySession.update({ where: { id }, data: dto, include: sessionInclude });
     this.publish(REALTIME_EVENTS.COMPANY_SESSION_UPDATED, updated);
@@ -224,5 +230,21 @@ export class DailyCompanySessionsService {
       companyId: session.companyId, dailyDutyId: session.dailyDutyId, movementCategoryId: session.movementCategoryId,
       status: session.status, updatedAt: session.updatedAt.toISOString() },
     { companyId: session.companyId, dailyDutyId: session.dailyDutyId, movementCategoryId: session.movementCategoryId, admins: true });
+  }
+
+  private assertPlannedFlightsCount(value: number) {
+    if (!Number.isInteger(value) || value < 1) {
+      throw new BadRequestException('plannedFlightsCount must be a positive integer');
+    }
+  }
+
+  private assertCanCreateSession(user: AuthUser) {
+    if (
+      user.role !== Role.MOVEMENT_SUPERVISOR &&
+      user.role !== Role.ADMIN &&
+      user.role !== Role.SUPER_ADMIN
+    ) {
+      throw new ForbiddenException('Only movement supervisors and administrators can create company sessions');
+    }
   }
 }

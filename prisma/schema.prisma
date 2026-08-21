@@ -766,7 +766,6 @@ model DailyCompanySession {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([dailyDutyId, companyId])
   @@index([dailyDutyId])
   @@index([movementCategoryId])
   @@index([companyId])
@@ -839,7 +838,6 @@ model DailySessionFlight {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([dailyCompanySessionId, flightId])
   @@index([dailyCompanySessionId])
   @@index([flightId])
   @@index([companyId])
